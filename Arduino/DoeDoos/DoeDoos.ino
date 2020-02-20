@@ -201,6 +201,13 @@ Button buttons[] = {
   {37, 49}
  };
 
+enum Modus {
+  standaard,
+  sketch
+};
+
+Modus modus = standaard;
+
 uint8_t buttonToPress = 0;
 
 void setup() {
@@ -210,9 +217,10 @@ void setup() {
   setupLED();
   setupButtons();
   newRandomButtonToPress();
-  //setupTorn();
+  setupTorn();
   setupEmergency();
   setupVibrator();
+  setupFlipButtons();
 }
 
 void loop() {
@@ -223,7 +231,58 @@ void loop() {
   loopVibrator();
   loopEmergency();
 //  loopIcons();
-  //loopTorn();
+  loopTorn();
+  loopFlipButtons();
+  loopOrangeRedPot();
+}
+
+#define FLIP_LEFT 44
+#define FLIP_RIGHT 45
+
+void setupFlipButtons() {
+  pinMode(FLIP_LEFT, INPUT_PULLUP);
+  pinMode(FLIP_RIGHT, INPUT_PULLUP);
+}
+
+void loopFlipButtons() {
+  loopLeftFlip();
+  loopRightFlip();
+}
+
+int flipLeftLastValue = HIGH;
+void loopLeftFlip() {
+  int left = digitalRead(FLIP_LEFT);
+  if (left == flipLeftLastValue) {
+    return;
+  }
+  if (left == HIGH) {
+    Serial.println("Modus to sketch");
+    modus = sketch;
+    matrix.clear();
+  } else {
+    Serial.println("Modus to default");
+    modus = standaard;
+    matrix.clear();
+  }
+  flipLeftLastValue = left;
+}
+
+bool vibratorON = false;
+int flipRightLastValue = HIGH;
+void loopRightFlip() {
+  int right = digitalRead(FLIP_RIGHT);
+  if (right == flipRightLastValue) {
+    return;
+  }
+  if (right == HIGH) {
+    Serial.println("Vibrator ON");
+    vibratorON = true;
+  } else {
+    Serial.println("Vibrator OFF");
+    vibratorON = false;
+    analogWrite(VIBRATOR, 0);
+  }
+  flipRightLastValue = right;
 }
 
 void setupEmergency() {
@@ -247,7 +306,7 @@ void loopVibrator() {
     return;
   }
   if (vibratorOn) {
-    analogWrite(VIBRATOR, 128);
+    analogWrite(VIBRATOR, 255);
   } else {
     analogWrite(VIBRATOR, 0);
   }
@@ -299,8 +358,18 @@ void setupButtons() {
 uint8_t buttonsSteps = 0;
 uint8_t buttonsStepsValue = HIGH;
 void readButtons() {
+  if (modus != standaard) {
+    for (uint8_t i=0; i < (sizeof(buttons)/sizeof(buttons[0])); i++) {
+      digitalWrite(buttons[i].led, LOW);
+    }
+    return;
+  }
+  bool aButtonIsBeingPressed = false;
   for (uint8_t i=0; i < (sizeof(buttons)/sizeof(buttons[0])); i++) {
     int val = digitalRead(buttons[i].input);
+    if (val == LOW && i != buttonToPress) {
+      aButtonIsBeingPressed = true;
+    }
     if (val == LOW && i == buttonToPress) {
       newRandomButtonToPress();
       nextIcon();
@@ -316,6 +385,17 @@ void readButtons() {
       digitalWrite(buttons[i].led, buttonsStepsValue);
     } else {
       digitalWrite(buttons[i].led, !val);
+    }
+  }
+  
+  if (vibratorON) {
+    Serial.print("Vibrator ON - a button is ");
+    if (aButtonIsBeingPressed) {
+      Serial.println("pressed");
+      analogWrite(VIBRATOR, 255);
+    } else {
+      Serial.println("NOT pressed");
+      analogWrite(VIBRATOR, 0);
     }
   }
   Serial.println("=====================");
@@ -388,14 +468,34 @@ void nextIcon() {
 void printIcon(uint8_t index) {
   Serial.print("Print smiley: ");
   Serial.println(index);
-    matrix.clear();
-    for (uint8_t x=0; x < (sizeof(icon[0])/sizeof(icon[0][0])); x++) {
-      for (uint8_t y = 0; y < (sizeof(icon[0][0])/sizeof(icon[0][0][0])); y++) {
-        if (icon[index][x][y] == 1) {
-          matrix.setPoint(x, y, true);
-        }
+  matrix.clear();
+  for (uint8_t x=0; x < (sizeof(icon[0])/sizeof(icon[0][0])); x++) {
+    for (uint8_t y = 0; y < (sizeof(icon[0][0])/sizeof(icon[0][0][0])); y++) {
+      if (icon[index][x][y] == 1) {
+        matrix.setPoint(x, y, true);
       }
     }
+  }
+  currentIcon = index;
+}
+
+bool isMirroring = false;
+void mirrorIcon() {
+  isMirroring = !isMirroring;
+  Serial.print("Mirror icon: ");
+  Serial.println(isMirroring);
+  matrix.clear();
+  for (uint8_t x=0; x < (sizeof(icon[0])/sizeof(icon[0][0])); x++) {
+    for (uint8_t y = 0; y < (sizeof(icon[0][0])/sizeof(icon[0][0][0])); y++) {
+      if (icon[currentIcon][x][y] == 1) {
+        uint8_t actualY = y;
+        if (isMirroring) {
+          actualY = abs(actualY-7);
+        }
+        matrix.setPoint(x, actualY, true);
+      }
+    }
+  }
 }
 
 void newRandomButtonToPress() {
@@ -410,22 +510,21 @@ void newRandomButtonToPress() {
 }
 
 void setupTorn() {
-  pinMode(INPUT_PULLUP, 46);
+  pinMode(46, INPUT_PULLUP);
 }
 
 int tornLastValue = HIGH;
 void loopTorn() {
+  if (modus != standaard) {
+    return;
+  }
   int val = digitalRead(46);
   Serial.print("Torn val:");
   Serial.println(val);
   if (val == tornLastValue) {
     return;
   }
-  if (val == HIGH) {
-    printIcon(0);
-  } else {
-    printIcon(1);
-  }
+  mirrorIcon();
   tornLastValue = val;
 }
 
@@ -442,6 +541,49 @@ void loopBlauwePot() {
     blauwePotSteps++;
   }
   digitalWrite(8, blauwePotState);
+}
+
+uint8_t tekening[8][8] = {
+    {0,0,0,0,0,0,0,0},
+    {0,0,0,0,0,0,0,0},
+    {0,0,0,0,0,0,0,0},
+    {0,0,0,0,0,0,0,0},
+    {0,0,0,0,0,0,0,0},
+    {0,0,0,0,0,0,0,0},
+    {0,0,0,0,0,0,0,0},
+    {0,0,0,0,0,0,0,0}
+  };
+  
+void resetTekening() {
+  for (uint8_t x=0;x<8;x++) {
+    for (uint8_t y=0;y<8;y++) {
+      tekening[x][y] = 0;  
+    }
+  }
+  matrix.clear();
+}
+
+void loopOrangeRedPot() {
+  if (modus != sketch) {
+    return;
+  }
+  int blue = digitalRead(41);
+  if (blue == LOW) {
+    Serial.println("Reset tekening");
+    resetTekening();
+  }
+  uint16_t red = analogRead(1);
+  uint16_t orange = analogRead(2);
+  uint8_t x = red / 128;
+  uint8_t y = orange / 128;
+  tekening[x][y] = 1;
+  for (uint8_t x=0;x<8;x++) {
+    for (uint8_t y=0;y<8;y++) {
+      if (tekening[x][y] == 1) {
+        matrix.setPoint(x, y, true);
+      }
+    }
+  }
 }
 
 uint8_t nfc[10][7] = {
@@ -462,7 +604,7 @@ uint8_t lastCard[10] = {};
 uint8_t loopNFCSteps = 0;
 void loopNFC() {
   loopNFCSteps++;
-  if (loopNFCSteps < 25) {
+  if (loopNFCSteps < 15) {
     return;
   }
   loopNFCSteps = 0;
