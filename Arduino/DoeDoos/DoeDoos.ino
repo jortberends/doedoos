@@ -573,7 +573,7 @@ void loopOrangeRedPot() {
     resetTekening();
   }
   uint16_t red = analogRead(1);
-  uint16_t orange = analogRead(2);
+  uint16_t orange = abs(analogRead(2)-1023);
   uint8_t x = red / 128;
   uint8_t y = orange / 128;
   tekening[x][y] = 1;
