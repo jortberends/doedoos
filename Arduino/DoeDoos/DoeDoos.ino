@@ -203,7 +203,8 @@ Button buttons[] = {
 
 enum Modus {
   standaard,
-  sketch
+  sketch,
+  catchDrop
 };
 
 Modus modus = standaard;
@@ -228,12 +229,12 @@ void loop() {
   readGoudenPot();
   loopBlauwePot();
   loopNFC();
-  loopVibrator();
   loopEmergency();
 //  loopIcons();
   loopTorn();
   loopFlipButtons();
   loopOrangeRedPot();
+  loopCatchDrop();
 }
 
 #define FLIP_LEFT 44
@@ -267,7 +268,6 @@ void loopLeftFlip() {
   flipLeftLastValue = left;
 }
 
-bool vibratorON = false;
 int flipRightLastValue = HIGH;
 void loopRightFlip() {
   int right = digitalRead(FLIP_RIGHT);
@@ -275,12 +275,14 @@ void loopRightFlip() {
     return;
   }
   if (right == HIGH) {
-    Serial.println("Vibrator ON");
-    vibratorON = true;
+    Serial.println("CatchDrop ON");
+    modus = catchDrop;
+    matrix.clear();
+    clearButtons();
   } else {
-    Serial.println("Vibrator OFF");
-    vibratorON = false;
-    analogWrite(VIBRATOR, 0);
+    Serial.println("CatchDrop OFF");
+    modus = standaard;
+    matrix.clear();
   }
   flipRightLastValue = right;
 }
@@ -293,25 +295,27 @@ void setupVibrator() {
   pinMode(VIBRATOR, OUTPUT);
 }
 
-uint8_t vibratorSteps = 0;
-bool vibratorOn = false;
-bool vibratorWorking = false;
-void loopVibrator() {
-  vibratorSteps++;
-  if (vibratorSteps == 255) {
-    vibratorSteps = 0;
-    vibratorOn = !vibratorOn;
-  }
-  if (!vibratorWorking) {
-    return;
-  }
-  if (vibratorOn) {
-    analogWrite(VIBRATOR, 255);
-  } else {
-    analogWrite(VIBRATOR, 0);
-  }
-}
-
+//uint8_t vibratorSteps = 0;
+//bool vibratorOn = false;
+//bool vibratorWorking = false;
+//void loopVibrator() {
+//  vibratorSteps++;
+//  if (vibratorSteps == 255) {
+//    vibratorSteps = 0;
+//    vibratorOn = !vibratorOn;
+//  } else {
+//    return;
+//  }
+//  if (!vibratorWorking) {
+//    return;
+//  }
+//  if (vibratorOn) {
+//    analogWrite(VIBRATOR, 255);
+//  } else {
+//    analogWrite(VIBRATOR, 0);
+//  }
+//}
+bool vibratorWorking=false;
 void loopEmergency() {
   uint8_t val = digitalRead(EMERGENCY);
   if (val == HIGH) {
@@ -355,13 +359,20 @@ void setupButtons() {
   }
 }
 
+void clearButtons() {
+  for (uint8_t i=0; i < (sizeof(buttons)/sizeof(buttons[0])); i++) {
+    digitalWrite(buttons[i].led, LOW);
+  }
+}
+
 uint8_t buttonsSteps = 0;
 uint8_t buttonsStepsValue = HIGH;
 void readButtons() {
+  if (modus == catchDrop) {
+    return;
+  }
   if (modus != standaard) {
-    for (uint8_t i=0; i < (sizeof(buttons)/sizeof(buttons[0])); i++) {
-      digitalWrite(buttons[i].led, LOW);
-    }
+    clearButtons();
     return;
   }
   bool aButtonIsBeingPressed = false;
@@ -388,20 +399,21 @@ void readButtons() {
     }
   }
   
-  if (vibratorON) {
-    Serial.print("Vibrator ON - a button is ");
-    if (aButtonIsBeingPressed) {
-      Serial.println("pressed");
-      analogWrite(VIBRATOR, 255);
-    } else {
-      Serial.println("NOT pressed");
-      analogWrite(VIBRATOR, 0);
-    }
+  Serial.print("Vibrator ON - a button is ");
+  if (aButtonIsBeingPressed) {
+    Serial.println("pressed");
+    analogWrite(VIBRATOR, 255);
+  } else {
+    Serial.println("NOT pressed");
+    analogWrite(VIBRATOR, 0);
   }
   Serial.println("=====================");
 }
 
 void readGoudenPot() {
+  if (modus == catchDrop) {
+    return;
+  }
   int val = analogRead(58);
   if (val > 102) {
     digitalWrite(31, HIGH);
@@ -561,6 +573,97 @@ void resetTekening() {
     }
   }
   matrix.clear();
+}
+
+// 0..1024
+uint8_t catchDropPoints=0;
+uint8_t xPos = 0;
+uint8_t lastXPos = 0;
+void loopCatchDropControl() {
+  uint16_t controlKnob = analogRead(58);
+  xPos = controlKnob / 147;
+  if (xPos == lastXPos) {
+    return;
+  }
+  // matrix 0,0 (x,y) rechts boven
+  // x = verticaal
+  // y = horizontaal
+  Serial.print("CatchDropBar: ");
+  Serial.println(xPos);
+  drawCatchDrop();
+  lastXPos = xPos;
+}
+
+void loopCatchDrop() {
+  if (modus != catchDrop) {
+    return;
+  }
+  loopCatchDropControl();
+  loopCatchDropDrop();
+}
+
+uint8_t drops[] = {8,8,8,8,8,8,8};
+uint16_t catchDropsStep = 0;
+uint8_t catchDropSpeed = 60;
+bool catchDropNeedSpawn = true;
+void loopCatchDropDrop() {
+  if (catchDropsStep < catchDropSpeed) {
+    catchDropsStep++;
+    return;
+  }
+  catchDropsStep=0;
+  for (uint8_t i=0;i<8;i++) {
+    if (drops[i] < 8) {
+      drops[i] = drops[i]+1;
+      if (drops[i] == 7) {
+        catchDropNeedSpawn=true;
+        if (i == xPos || i == xPos+1) {
+          catchDropPoints++;
+          if (catchDropPoints == 0) {
+            digitalWrite(5, LOW);
+            digitalWrite(6, LOW);
+            digitalWrite(7, LOW);
+          } else if (catchDropPoints == 1) {
+            digitalWrite(5,HIGH);
+          } else if (catchDropPoints == 2) {
+            digitalWrite(6, HIGH);
+          } else if (catchDropPoints == 3) {
+            digitalWrite(7, HIGH);
+          } else if (catchDropPoints == 4) {
+            digitalWrite(5, LOW);
+            digitalWrite(6, LOW);
+            digitalWrite(7, LOW);
+            catchDropPoints=0;
+            catchDropSpeed=catchDropSpeed-3;
+          }
+        } else {
+          // lives meganisme
+          catchDropSpeed=60;
+          catchDropPoints=0;
+          digitalWrite(5, LOW);
+          digitalWrite(6, LOW);
+          digitalWrite(7, LOW);
+        }
+      }
+    }
+  }
+  if (catchDropNeedSpawn) {
+    catchDropNeedSpawn=false;
+    uint8_t newDropAt = random(0,7);
+    drops[newDropAt]=0;
+  }
+  drawCatchDrop();
+}
+
+void drawCatchDrop() {
+  matrix.clear();
+  matrix.setPoint(7,xPos,true);
+  matrix.setPoint(7,xPos+1,true);
+  for (uint8_t i=0;i<8;i++) {
+    if (drops[i] < 8) {
+      matrix.setPoint(drops[i],i,true);
+    }
+  }
 }
 
 void loopOrangeRedPot() {
