@@ -613,15 +613,18 @@ void loopCatchDrop() {
 }
 
 uint8_t drops[] = {8,8,8,8,8,8,8,8};
-uint16_t catchDropsStep = 0;
-uint8_t catchDropSpeed = 60;
+const unsigned long CATCH_DROP_BASE_INTERVAL_MS = 200;
+const unsigned long CATCH_DROP_MIN_INTERVAL_MS = 1;
+unsigned long catchDropIntervalMs = CATCH_DROP_BASE_INTERVAL_MS;
+unsigned long lastCatchDropUpdate = 0;
 bool catchDropNeedSpawn = true;
 void loopCatchDropDrop() {
-  if (catchDropsStep < catchDropSpeed) {
-    catchDropsStep++;
+  unsigned long currentMillis = millis();
+  if (currentMillis - lastCatchDropUpdate < catchDropIntervalMs) {
     return;
   }
-  catchDropsStep=0;
+  lastCatchDropUpdate = currentMillis;
+
   for (uint8_t i=0;i<8;i++) {
     if (drops[i] < 8) {
       drops[i] = drops[i]+1;
@@ -629,26 +632,15 @@ void loopCatchDropDrop() {
         catchDropNeedSpawn=true;
         if (i == xPos || i == xPos+1) {
           catchDropPoints++;
-          if (catchDropPoints == 0) {
-            digitalWrite(5, LOW);
-            digitalWrite(6, LOW);
-            digitalWrite(7, LOW);
-          } else if (catchDropPoints == 1) {
-            digitalWrite(5,HIGH);
-          } else if (catchDropPoints == 2) {
-            digitalWrite(6, HIGH);
-          } else if (catchDropPoints == 3) {
-            digitalWrite(7, HIGH);
-          } else if (catchDropPoints == 4) {
-            digitalWrite(5, LOW);
-            digitalWrite(6, LOW);
-            digitalWrite(7, LOW);
-            catchDropPoints=0;
-            catchDropSpeed=catchDropSpeed-3;
+          if (catchDropIntervalMs > CATCH_DROP_MIN_INTERVAL_MS) {
+            catchDropIntervalMs = catchDropIntervalMs-5;
           }
         } else {
           // lives meganisme
-          catchDropSpeed=60;
+          if (catchDropPoints > 0) {
+            displayGameOver(catchDropPoints);
+          }
+          catchDropIntervalMs = CATCH_DROP_BASE_INTERVAL_MS;
           catchDropPoints=0;
           digitalWrite(5, LOW);
           digitalWrite(6, LOW);
