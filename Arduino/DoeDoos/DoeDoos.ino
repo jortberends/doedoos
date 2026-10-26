@@ -14,7 +14,7 @@ MFRC522 mfrc522(53, -1);  // Create MFRC522 instance
 #define EMERGENCY 12
 
 int ledPins[] = {8,23,25,27,29,31};
-int pots[] = {54,55,56,57,58};
+// int pots[] = {54,55,56,57,58};
 
 uint8_t letters[9][8][8] = {
   { // E lin
@@ -602,7 +602,7 @@ void loopCatchDrop() {
   loopCatchDropDrop();
 }
 
-uint8_t drops[] = {8,8,8,8,8,8,8};
+uint8_t drops[] = {8,8,8,8,8,8,8,8};
 uint16_t catchDropsStep = 0;
 uint8_t catchDropSpeed = 60;
 bool catchDropNeedSpawn = true;
@@ -689,7 +689,7 @@ void loopOrangeRedPot() {
   }
 }
 
-uint8_t nfc[10][7] = {
+uint8_t nfc[9][7] = {
   {0x04,0x1D,0x35,0xC2,0x83,0x64,0x81},
   {0x04,0x25,0x35,0xC2,0x83,0x64,0x81},
   {0x04,0x29,0x34,0xC2,0x83,0x64,0x81},
@@ -698,8 +698,7 @@ uint8_t nfc[10][7] = {
   {0x04,0xFA,0x31,0xC2,0x83,0x64,0x80},
   {0x04,0x13,0x32,0xC2,0x83,0x64,0x81},
   {0x04,0x0B,0x32,0xC2,0x83,0x64,0x81},
-  {0x04,0x04,0x31,0xC2,0x83,0x64,0x81},
-  
+  {0x04,0x04,0x31,0xC2,0x83,0x64,0x81}
   };
 //uint8_t nfc_blauwedruppel[] = {0xCA, 0x26, 0x64, 0x25};
 //uint8_t nfc_card[] = {0xF2,0xF6,0x7E,0x2C};
@@ -726,7 +725,7 @@ void loopNFC() {
     Serial.println("Same as previous");
     return;
   }
-  strcpy(lastCard, mfrc522.uid.uidByte);
+  memcpy(lastCard, mfrc522.uid.uidByte, mfrc522.uid.size);
   for (uint8_t i=0; i < (sizeof(nfc)/sizeof(nfc[0])); i++) {
     if (memcmp(lastCard, nfc[i], mfrc522.uid.size) == 0) {
       uint8_t fileIndex = i; // 0-based
