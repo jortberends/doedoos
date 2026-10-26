@@ -1,6 +1,8 @@
 #include <MD_MAX72xx.h>
 #include <SPI.h>
 #include <MFRC522.h>
+#include <stdio.h>
+#include <string.h>
 
 //  Matrix
 #define MATRIX_HARDWARE_TYPE MD_MAX72XX::ICSTATION_HW
@@ -248,8 +250,8 @@ void setupFlipButtons() {
   pinMode(FLIP_RIGHT, INPUT_PULLUP);
 }
 
-int flipLeftLastValue = HIGH;
-int flipRightLastValue = HIGH;
+int flipLeftLastValue = LOW;
+int flipRightLastValue = LOW;
 void loopFlipButtons() {
   int left = digitalRead(FLIP_LEFT);
   int right = digitalRead(FLIP_RIGHT);
@@ -259,16 +261,19 @@ void loopFlipButtons() {
   flipRightLastValue = right;
   flipLeftLastValue = left;
 
+  matrix.clear();
+  clearButtons();
+  clearLeds();
+
   if (right == HIGH) {
     if (left == HIGH) {
       Serial.println("Modus to catch the line");
       modus = catchLine;
+      digitalWrite(buttons[3].led, HIGH);
     } else {
       Serial.println("Modus to catch the drop");
       modus = catchDrop;
     }
-    matrix.clear();
-    clearButtons();
   } else {
     if (left == HIGH) {
       Serial.println("Modus to sketch");
@@ -277,7 +282,6 @@ void loopFlipButtons() {
       Serial.println("Modus to default");
       modus = standaard;
     }
-    matrix.clear();
   }
 }
 
@@ -359,6 +363,12 @@ void setupButtons() {
 void clearButtons() {
   for (uint8_t i=0; i < (sizeof(buttons)/sizeof(buttons[0])); i++) {
     digitalWrite(buttons[i].led, LOW);
+  }
+}
+
+void clearLeds() {
+  for (uint8_t i=0; i < (sizeof(ledPins)/sizeof(ledPins[0])); i++) {
+    digitalWrite(ledPins[i], LOW);
   }
 }
 
@@ -674,8 +684,18 @@ int catchLineButtonState = HIGH;
 int lastCatchLineButtonReading = HIGH;
 unsigned long lastCatchLineButtonChange = 0;
 const unsigned long CATCH_LINE_BUTTON_DEBOUNCE_MS = 30;
-const unsigned long CATCH_LINE_INTERVAL_MS = 100;
+const unsigned long CATCH_LINE_INTERVAL_MS = 200;
 unsigned long lastCatchLineUpdate = 0;
+
+void resetCatchLine() {
+  xPosCatchLine = 0;
+  catchLineMovingRight = true;
+  catchLinePoints = 0;
+  catchLineButtonState = HIGH;
+  lastCatchLineButtonReading = HIGH;
+  lastCatchLineButtonChange = 0;
+  lastCatchLineUpdate = 0;
+}
 
 void loopCatchLine() {
   if (modus != catchLine) {
@@ -700,8 +720,12 @@ void loopCatchLine() {
       catchLinePoints++;
       Serial.print("Catch the line points: ");
       Serial.println(catchLinePoints);
+      displayScore(catchLinePoints);
     } else {
       Serial.println("Missed the line!");
+      displayGameOver(catchLinePoints);
+      resetCatchLine();
+      return;
     }
   }
 
@@ -738,6 +762,110 @@ void loopCatchLine() {
 }
 
 // END: Catch the line
+
+uint8_t gameOverGlyphColumn(char character, uint8_t column) {
+  static const uint8_t glyphG[5] = {0x7E, 0x41, 0x49, 0x49, 0x3A};
+  static const uint8_t glyphA[5] = {0x3E, 0x11, 0x11, 0x11, 0x3E};
+  static const uint8_t glyphM[5] = {0x7F, 0x06, 0x18, 0x06, 0x7F};
+  static const uint8_t glyphE[5] = {0x7F, 0x49, 0x49, 0x49, 0x41};
+  static const uint8_t glyphO[5] = {0x3E, 0x41, 0x41, 0x41, 0x3E};
+  static const uint8_t glyphV[5] = {0x0F, 0x30, 0x40, 0x30, 0x0F};
+  static const uint8_t glyphR[5] = {0x7F, 0x09, 0x19, 0x29, 0x46};
+  static const uint8_t glyph0[5] = {0x3E, 0x51, 0x49, 0x45, 0x3E};
+  static const uint8_t glyph1[5] = {0x00, 0x42, 0x7F, 0x40, 0x00};
+  static const uint8_t glyph2[5] = {0x62, 0x51, 0x49, 0x49, 0x46};
+  static const uint8_t glyph3[5] = {0x22, 0x41, 0x49, 0x49, 0x36};
+  static const uint8_t glyph4[5] = {0x18, 0x14, 0x12, 0x7F, 0x10};
+  static const uint8_t glyph5[5] = {0x2F, 0x49, 0x49, 0x49, 0x31};
+  static const uint8_t glyph6[5] = {0x3E, 0x49, 0x49, 0x49, 0x32};
+  static const uint8_t glyph7[5] = {0x01, 0x71, 0x09, 0x05, 0x03};
+  static const uint8_t glyph8[5] = {0x36, 0x49, 0x49, 0x49, 0x36};
+  static const uint8_t glyph9[5] = {0x26, 0x49, 0x49, 0x49, 0x3E};
+  const uint8_t *glyph = nullptr;
+
+  switch (character) {
+    case 'G': glyph = glyphG; break;
+    case 'A': glyph = glyphA; break;
+    case 'M': glyph = glyphM; break;
+    case 'E': glyph = glyphE; break;
+    case 'O': glyph = glyphO; break;
+    case 'V': glyph = glyphV; break;
+    case 'R': glyph = glyphR; break;
+    case '0': glyph = glyph0; break;
+    case '1': glyph = glyph1; break;
+    case '2': glyph = glyph2; break;
+    case '3': glyph = glyph3; break;
+    case '4': glyph = glyph4; break;
+    case '5': glyph = glyph5; break;
+    case '6': glyph = glyph6; break;
+    case '7': glyph = glyph7; break;
+    case '8': glyph = glyph8; break;
+    case '9': glyph = glyph9; break;
+    default: return 0;
+  }
+  return glyph[column];
+}
+
+void scrollGameOverColumn(uint8_t incomingColumn, uint8_t displayedColumns[8], uint16_t delayMs) {
+  for (int8_t column = 7; column > 0; column--) {
+    displayedColumns[column] = displayedColumns[column - 1];
+  }
+  displayedColumns[0] = incomingColumn;
+
+  matrix.clear();
+  for (uint8_t column = 0; column < 8; column++) {
+    for (uint8_t row = 0; row < 7; row++) {
+      if (displayedColumns[column] & (1 << row)) {
+        matrix.setPoint(row, column, true);
+      }
+    }
+  }
+  delay(delayMs);
+}
+
+void displayGameOver(uint16_t points) {
+  char message[20];
+  snprintf(message, sizeof(message), "GAME OVER %u", points);
+
+  uint8_t displayedColumns[8] = {};
+  size_t messageLength = strlen(message);
+
+  for (size_t characterIndex = 0; characterIndex < messageLength; characterIndex++) {
+    for (uint8_t glyphColumn = 0; glyphColumn < 6; glyphColumn++) {
+      uint8_t incomingColumn = glyphColumn < 5
+        ? gameOverGlyphColumn(message[characterIndex], glyphColumn)
+        : 0;
+      scrollGameOverColumn(incomingColumn, displayedColumns, 100);
+    }
+  }
+
+  for (uint8_t column = 0; column < 8; column++) {
+    scrollGameOverColumn(0, displayedColumns, 100);
+  }
+}
+
+void displayScore(uint16_t points) {
+  char score[6];
+  snprintf(score, sizeof(score), "%u", points);
+
+  uint8_t displayedColumns[8] = {};
+  size_t scoreLength = strlen(score);
+  uint8_t totalColumns = scoreLength * 6 + 8;
+  uint16_t scrollDelayMs = 1000 / totalColumns;
+
+  for (size_t characterIndex = 0; characterIndex < scoreLength; characterIndex++) {
+    for (uint8_t glyphColumn = 0; glyphColumn < 6; glyphColumn++) {
+      uint8_t incomingColumn = glyphColumn < 5
+        ? gameOverGlyphColumn(score[characterIndex], glyphColumn)
+        : 0;
+      scrollGameOverColumn(incomingColumn, displayedColumns, scrollDelayMs);
+    }
+  }
+
+  for (uint8_t column = 0; column < 8; column++) {
+    scrollGameOverColumn(0, displayedColumns, scrollDelayMs);
+  }
+}
 
 void loopOrangeRedPot() {
   if (modus != sketch) {
