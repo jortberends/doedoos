@@ -15,6 +15,7 @@ MFRC522 mfrc522(53, -1);  // Create MFRC522 instance
 
 int ledPins[] = {8,23,25,27,29,31};
 // int pots[] = {54,55,56,57,58};
+#define GOLDEN_POT 58
 
 uint8_t letters[9][8][8] = {
   { // E lin
@@ -193,7 +194,7 @@ Button buttons[] = {
   { 2, 38},
   { 3, 39},
   { 4, 40},
-  { 5, 41},
+  { 5, 41}, // Blue
   { 6, 42},
   { 7, 43},
   {33, 47},
@@ -204,7 +205,8 @@ Button buttons[] = {
 enum Modus {
   standaard,
   sketch,
-  catchDrop
+  catchDrop,
+  catchLine
 };
 
 Modus modus = standaard;
@@ -235,6 +237,7 @@ void loop() {
   loopFlipButtons();
   loopOrangeRedPot();
   loopCatchDrop();
+  loopCatchLine();
 }
 
 #define FLIP_LEFT 44
@@ -245,46 +248,37 @@ void setupFlipButtons() {
   pinMode(FLIP_RIGHT, INPUT_PULLUP);
 }
 
-void loopFlipButtons() {
-  loopLeftFlip();
-  loopRightFlip();
-}
-
 int flipLeftLastValue = HIGH;
-void loopLeftFlip() {
-  int left = digitalRead(FLIP_LEFT);
-  if (left == flipLeftLastValue) {
-    return;
-  }
-  if (left == HIGH) {
-    Serial.println("Modus to sketch");
-    modus = sketch;
-    matrix.clear();
-  } else {
-    Serial.println("Modus to default");
-    modus = standaard;
-    matrix.clear();
-  }
-  flipLeftLastValue = left;
-}
-
 int flipRightLastValue = HIGH;
-void loopRightFlip() {
+void loopFlipButtons() {
+  int left = digitalRead(FLIP_LEFT);
   int right = digitalRead(FLIP_RIGHT);
-  if (right == flipRightLastValue) {
+  if (left == flipLeftLastValue && right == flipRightLastValue) {
     return;
   }
+  flipRightLastValue = right;
+  flipLeftLastValue = left;
+
   if (right == HIGH) {
-    Serial.println("CatchDrop ON");
-    modus = catchDrop;
+    if (left == HIGH) {
+      Serial.println("Modus to catch the line");
+      modus = catchLine;
+    } else {
+      Serial.println("Modus to catch the drop");
+      modus = catchDrop;
+    }
     matrix.clear();
     clearButtons();
   } else {
-    Serial.println("CatchDrop OFF");
-    modus = standaard;
+    if (left == HIGH) {
+      Serial.println("Modus to sketch");
+      modus = sketch;
+    } else {
+      Serial.println("Modus to default");
+      modus = standaard;
+    }
     matrix.clear();
   }
-  flipRightLastValue = right;
 }
 
 void setupEmergency() {
@@ -317,6 +311,9 @@ void setupVibrator() {
 //}
 bool vibratorWorking=false;
 void loopEmergency() {
+  if (modus == catchDrop || modus == catchLine) {
+    return;
+  }
   uint8_t val = digitalRead(EMERGENCY);
   if (val == HIGH) {
     Serial.println("Emergency HIGH");
@@ -368,7 +365,7 @@ void clearButtons() {
 uint8_t buttonsSteps = 0;
 uint8_t buttonsStepsValue = HIGH;
 void readButtons() {
-  if (modus == catchDrop) {
+  if (modus == catchDrop || modus == catchLine) {
     return;
   }
   if (modus != standaard) {
@@ -411,10 +408,10 @@ void readButtons() {
 }
 
 void readGoudenPot() {
-  if (modus == catchDrop) {
+  if (modus == catchDrop || modus == catchLine) {
     return;
   }
-  int val = analogRead(58);
+  int val = analogRead(GOLDEN_POT);
   if (val > 102) {
     digitalWrite(31, HIGH);
   } else {
@@ -543,6 +540,9 @@ void loopTorn() {
 uint16_t blauwePotSteps = 0;
 uint16_t blauwePotState = HIGH;
 void loopBlauwePot() {
+  if (modus == catchDrop || modus == catchLine) {
+    return;
+  }
   uint16_t val = analogRead(0);
   Serial.print("Blauwe pot: ");
   Serial.println(val);
@@ -580,7 +580,7 @@ uint8_t catchDropPoints=0;
 uint8_t xPos = 0;
 uint8_t lastXPos = 0;
 void loopCatchDropControl() {
-  uint16_t controlKnob = analogRead(58);
+  uint16_t controlKnob = analogRead(GOLDEN_POT);
   xPos = controlKnob / 147;
   if (xPos == lastXPos) {
     return;
@@ -666,11 +666,84 @@ void drawCatchDrop() {
   }
 }
 
+// START: Catch the line
+uint8_t xPosCatchLine = 0;
+bool catchLineMovingRight = true;
+uint16_t catchLinePoints = 0;
+int catchLineButtonState = HIGH;
+int lastCatchLineButtonReading = HIGH;
+unsigned long lastCatchLineButtonChange = 0;
+const unsigned long CATCH_LINE_BUTTON_DEBOUNCE_MS = 30;
+const unsigned long CATCH_LINE_INTERVAL_MS = 100;
+unsigned long lastCatchLineUpdate = 0;
+
+void loopCatchLine() {
+  if (modus != catchLine) {
+    return;
+  }
+
+  // Debounce the active-low button and count only the stable press edge.
+  int buttonReading = digitalRead(buttons[3].input);
+  if (buttonReading != lastCatchLineButtonReading) {
+    lastCatchLineButtonChange = millis();
+    lastCatchLineButtonReading = buttonReading;
+  }
+  bool catchLineButtonPressed = false;
+  if (millis() - lastCatchLineButtonChange >= CATCH_LINE_BUTTON_DEBOUNCE_MS &&
+      buttonReading != catchLineButtonState) {
+    catchLineButtonState = buttonReading;
+    catchLineButtonPressed = catchLineButtonState == LOW;
+  }
+  if (catchLineButtonPressed) {
+    if (xPosCatchLine == 4) {
+      Serial.println("Caught the line!");
+      catchLinePoints++;
+      Serial.print("Catch the line points: ");
+      Serial.println(catchLinePoints);
+    } else {
+      Serial.println("Missed the line!");
+    }
+  }
+
+  // Update the catch line position
+  unsigned long currentMillis = millis();
+  if (currentMillis - lastCatchLineUpdate < CATCH_LINE_INTERVAL_MS) {
+    return;
+  }
+  lastCatchLineUpdate = currentMillis;
+
+  matrix.clear();
+  if (xPosCatchLine == 8) {
+    catchLineMovingRight = false;
+  } else if (xPosCatchLine == 0) {
+    catchLineMovingRight = true;
+  }
+  if (catchLineMovingRight) {
+    xPosCatchLine++;
+  } else {
+    xPosCatchLine--;
+  }
+
+  // Draw the new position of the catch line, but also keep the previous position lit for a trailing effect.
+  if (xPosCatchLine < 8) {
+    matrix.setColumn(xPosCatchLine, 0xFF); // Draw the new position
+  }
+  if (xPosCatchLine > 0) {
+    matrix.setColumn(xPosCatchLine - 1, 0xFF);
+  }
+
+  // Draw the "catch line" at the bottom of the matrix
+  matrix.setPoint(7, 3, true);
+  matrix.setPoint(7, 4, true);
+}
+
+// END: Catch the line
+
 void loopOrangeRedPot() {
   if (modus != sketch) {
     return;
   }
-  int blue = digitalRead(41);
+  int blue = digitalRead(buttons[3].input);
   if (blue == LOW) {
     Serial.println("Reset tekening");
     resetTekening();
@@ -705,6 +778,9 @@ uint8_t nfc[9][7] = {
 uint8_t lastCard[10] = {};
 uint8_t loopNFCSteps = 0;
 void loopNFC() {
+  if (modus == catchDrop || modus == catchLine) {
+    return;
+  }
   loopNFCSteps++;
   if (loopNFCSteps < 15) {
     return;
