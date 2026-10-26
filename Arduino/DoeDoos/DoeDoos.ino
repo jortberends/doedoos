@@ -4,6 +4,15 @@
 #include <stdio.h>
 #include <string.h>
 
+#define DEBUG_ENABLED 0
+#if DEBUG_ENABLED
+  #define DEBUG_PRINT(...) Serial.print(__VA_ARGS__)
+  #define DEBUG_PRINTLN(...) Serial.println(__VA_ARGS__)
+#else
+  #define DEBUG_PRINT(...)
+  #define DEBUG_PRINTLN(...)
+#endif
+
 //  Matrix
 #define MATRIX_HARDWARE_TYPE MD_MAX72XX::ICSTATION_HW
 #define MATRIX_MAX_DEVICES 1
@@ -267,19 +276,19 @@ void loopFlipButtons() {
 
   if (right == HIGH) {
     if (left == HIGH) {
-      Serial.println("Modus to catch the line");
+      DEBUG_PRINTLN("Modus to catch the line");
       modus = catchLine;
       digitalWrite(buttons[3].led, HIGH);
     } else {
-      Serial.println("Modus to catch the drop");
+      DEBUG_PRINTLN("Modus to catch the drop");
       modus = catchDrop;
     }
   } else {
     if (left == HIGH) {
-      Serial.println("Modus to sketch");
+      DEBUG_PRINTLN("Modus to sketch");
       modus = sketch;
     } else {
-      Serial.println("Modus to default");
+      DEBUG_PRINTLN("Modus to default");
       modus = standaard;
     }
   }
@@ -320,10 +329,10 @@ void loopEmergency() {
   }
   uint8_t val = digitalRead(EMERGENCY);
   if (val == HIGH) {
-    Serial.println("Emergency HIGH");
+    DEBUG_PRINTLN("Emergency HIGH");
     vibratorWorking=true;
   } else {
-    Serial.println("Emergency LOW");
+    DEBUG_PRINTLN("Emergency LOW");
     vibratorWorking=false;
     analogWrite(VIBRATOR, 0);
   }
@@ -336,7 +345,7 @@ void testLED() {
     digitalWrite(ledPins[pin], LOW);
   }
   for (uint8_t x = 0; x<8; x++) {
-    Serial.println();
+    DEBUG_PRINTLN();
     for (uint8_t y = 0; y<8; y++) {
       matrix.setPoint(x, y, true);
       delay(50);
@@ -347,8 +356,8 @@ void testLED() {
 
 void setupLED() {
   for (uint8_t i = 0; i < (sizeof(ledPins)/sizeof(ledPins[0])); i++) {
-    Serial.print("Pinmode output for: ");
-    Serial.println(i);
+    DEBUG_PRINT("Pinmode output for: ");
+    DEBUG_PRINTLN(i);
     pinMode(ledPins[i], OUTPUT);
   }
 }
@@ -406,15 +415,15 @@ void readButtons() {
     }
   }
   
-  Serial.print("Vibrator ON - a button is ");
+  DEBUG_PRINT("Vibrator ON - a button is ");
   if (aButtonIsBeingPressed) {
-    Serial.println("pressed");
+    DEBUG_PRINTLN("pressed");
     analogWrite(VIBRATOR, 255);
   } else {
-    Serial.println("NOT pressed");
+    DEBUG_PRINTLN("NOT pressed");
     analogWrite(VIBRATOR, 0);
   }
-  Serial.println("=====================");
+  DEBUG_PRINTLN("=====================");
 }
 
 void readGoudenPot() {
@@ -447,8 +456,8 @@ void readGoudenPot() {
   } else {
     digitalWrite(23, LOW);
   }
-  Serial.print("Gold Pot:");
-  Serial.println(val);
+  DEBUG_PRINT("Gold Pot:");
+  DEBUG_PRINTLN(val);
 }
 
 
@@ -463,8 +472,8 @@ void loopIcons() {
 }
 
 void printLetter(uint8_t index) {
-  Serial.print("PrintLetter:");
-  Serial.println(index);
+  DEBUG_PRINT("PrintLetter:");
+  DEBUG_PRINTLN(index);
   matrix.clear();
   for (uint8_t x=0; x < (sizeof(letters[0])/sizeof(letters[0][0])); x++) {
     for (uint8_t y = 0; y < (sizeof(letters[0][0])/sizeof(letters[0][0][0])); y++) {
@@ -485,8 +494,8 @@ void nextIcon() {
 }
 
 void printIcon(uint8_t index) {
-  Serial.print("Print smiley: ");
-  Serial.println(index);
+  DEBUG_PRINT("Print smiley: ");
+  DEBUG_PRINTLN(index);
   matrix.clear();
   for (uint8_t x=0; x < (sizeof(icon[0])/sizeof(icon[0][0])); x++) {
     for (uint8_t y = 0; y < (sizeof(icon[0][0])/sizeof(icon[0][0][0])); y++) {
@@ -501,8 +510,8 @@ void printIcon(uint8_t index) {
 bool isMirroring = false;
 void mirrorIcon() {
   isMirroring = !isMirroring;
-  Serial.print("Mirror icon: ");
-  Serial.println(isMirroring);
+  DEBUG_PRINT("Mirror icon: ");
+  DEBUG_PRINTLN(isMirroring);
   matrix.clear();
   for (uint8_t x=0; x < (sizeof(icon[0])/sizeof(icon[0][0])); x++) {
     for (uint8_t y = 0; y < (sizeof(icon[0][0])/sizeof(icon[0][0][0])); y++) {
@@ -523,8 +532,8 @@ void newRandomButtonToPress() {
     newRandomButtonToPress();
   } else {
     buttonToPress = newRandomButton;
-    Serial.print("New button to press: ");
-    Serial.println(buttons[buttonToPress].input);
+    DEBUG_PRINT("New button to press: ");
+    DEBUG_PRINTLN(buttons[buttonToPress].input);
   }
 }
 
@@ -538,8 +547,8 @@ void loopTorn() {
     return;
   }
   int val = digitalRead(46);
-  Serial.print("Torn val:");
-  Serial.println(val);
+  DEBUG_PRINT("Torn val:");
+  DEBUG_PRINTLN(val);
   if (val == tornLastValue) {
     return;
   }
@@ -554,8 +563,8 @@ void loopBlauwePot() {
     return;
   }
   uint16_t val = analogRead(0);
-  Serial.print("Blauwe pot: ");
-  Serial.println(val);
+  DEBUG_PRINT("Blauwe pot: ");
+  DEBUG_PRINTLN(val);
   if (blauwePotSteps > (val/4)) {
     blauwePotState = !blauwePotState;
     blauwePotSteps = 0;
@@ -598,8 +607,8 @@ void loopCatchDropControl() {
   // matrix 0,0 (x,y) rechts boven
   // x = verticaal
   // y = horizontaal
-  Serial.print("CatchDropBar: ");
-  Serial.println(xPos);
+  DEBUG_PRINT("CatchDropBar: ");
+  DEBUG_PRINTLN(xPos);
   drawCatchDrop();
   lastXPos = xPos;
 }
@@ -708,13 +717,13 @@ void loopCatchLine() {
   }
   if (catchLineButtonPressed) {
     if (xPosCatchLine == 4) {
-      Serial.println("Caught the line!");
+      DEBUG_PRINTLN("Caught the line!");
       catchLinePoints++;
-      Serial.print("Catch the line points: ");
-      Serial.println(catchLinePoints);
+      DEBUG_PRINT("Catch the line points: ");
+      DEBUG_PRINTLN(catchLinePoints);
       displayScore(catchLinePoints);
     } else {
-      Serial.println("Missed the line!");
+      DEBUG_PRINTLN("Missed the line!");
       displayGameOver(catchLinePoints);
       resetCatchLine();
       return;
@@ -865,7 +874,7 @@ void loopOrangeRedPot() {
   }
   int blue = digitalRead(buttons[3].input);
   if (blue == LOW) {
-    Serial.println("Reset tekening");
+    DEBUG_PRINTLN("Reset tekening");
     resetTekening();
   }
   uint16_t red = analogRead(1);
@@ -907,31 +916,31 @@ void loopNFC() {
   }
   loopNFCSteps = 0;
   if (!mfrc522.PICC_IsNewCardPresent()) {
-    Serial.println("No card present");
+    DEBUG_PRINTLN("No card present");
     return;
   }
 
   if (!mfrc522.PICC_ReadCardSerial()) {
-    Serial.println("Read error");
+    DEBUG_PRINTLN("Read error");
     return;
   }
-  Serial.println("Card read.");
+  DEBUG_PRINTLN("Card read.");
   if (memcmp(mfrc522.uid.uidByte, lastCard, mfrc522.uid.size) == 0) {
     // Same NFC as previous
-    Serial.println("Same as previous");
+    DEBUG_PRINTLN("Same as previous");
     return;
   }
   memcpy(lastCard, mfrc522.uid.uidByte, mfrc522.uid.size);
   for (uint8_t i=0; i < (sizeof(nfc)/sizeof(nfc[0])); i++) {
     if (memcmp(lastCard, nfc[i], mfrc522.uid.size) == 0) {
       uint8_t fileIndex = i; // 0-based
-      Serial.print("Card: ");
-      Serial.println(fileIndex);
+      DEBUG_PRINT("Card: ");
+      DEBUG_PRINTLN(fileIndex);
       printLetter(fileIndex);
       return;
     }
   }
-  Serial.println("Unknown NFC: ");
+  DEBUG_PRINTLN("Unknown NFC: ");
 }
 
 /**
@@ -939,7 +948,7 @@ void loopNFC() {
  */
 void printHex(byte *buffer, byte bufferSize) {
   for (byte i = 0; i < bufferSize; i++) {
-    Serial.print(buffer[i] < 0x10 ? " 0" : " ");
-    Serial.print(buffer[i], HEX);
+    DEBUG_PRINT(buffer[i] < 0x10 ? " 0" : " ");
+    DEBUG_PRINT(buffer[i], HEX);
   }
 }
