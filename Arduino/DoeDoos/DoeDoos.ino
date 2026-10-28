@@ -6,11 +6,15 @@
 
 #define DEBUG_ENABLED 0
 #if DEBUG_ENABLED
-  #define DEBUG_PRINT(...) Serial.print(__VA_ARGS__)
-  #define DEBUG_PRINTLN(...) Serial.println(__VA_ARGS__)
+  #define DEBUG_PRINT(value) Serial.print(value)
+  #define DEBUG_PRINTLN(value) Serial.println(value)
+  #define DEBUG_PRINT_NEWLINE() Serial.println()
+  #define DEBUG_PRINT_FORMAT(value, format) Serial.print(value, format)
 #else
-  #define DEBUG_PRINT(...)
-  #define DEBUG_PRINTLN(...)
+  #define DEBUG_PRINT(value)
+  #define DEBUG_PRINTLN(value)
+  #define DEBUG_PRINT_NEWLINE()
+  #define DEBUG_PRINT_FORMAT(value, format)
 #endif
 
 //  Matrix
@@ -345,7 +349,7 @@ void testLED() {
     digitalWrite(ledPins[pin], LOW);
   }
   for (uint8_t x = 0; x<8; x++) {
-    DEBUG_PRINTLN();
+    DEBUG_PRINT_NEWLINE();
     for (uint8_t y = 0; y<8; y++) {
       matrix.setPoint(x, y, true);
       delay(50);
@@ -949,6 +953,6 @@ void loopNFC() {
 void printHex(byte *buffer, byte bufferSize) {
   for (byte i = 0; i < bufferSize; i++) {
     DEBUG_PRINT(buffer[i] < 0x10 ? " 0" : " ");
-    DEBUG_PRINT(buffer[i], HEX);
+    DEBUG_PRINT_FORMAT(buffer[i], HEX);
   }
 }
