@@ -3,94 +3,68 @@
 #include "Display.h"
 #include "Debug.h"
 
-void loopCatchDropDrop();
-void drawCatchDrop();
-
-uint8_t catchDropPoints=0;
-
-uint8_t xPos = 0;
-
-uint8_t lastXPos = 0;
-
-uint8_t drops[] = {8,8,8,8,8,8,8,8};
-
+namespace {
 const unsigned long CATCH_DROP_BASE_INTERVAL_MS = 200;
-
 const unsigned long CATCH_DROP_MIN_INTERVAL_MS = 1;
-
-unsigned long catchDropIntervalMs = CATCH_DROP_BASE_INTERVAL_MS;
-
-unsigned long lastCatchDropUpdate = 0;
-
-bool catchDropNeedSpawn = true;
-
-uint8_t xPosCatchLine = 0;
-
-bool catchLineMovingRight = true;
-
-uint16_t catchLinePoints = 0;
-
-int catchLineButtonState = HIGH;
-
-int lastCatchLineButtonReading = HIGH;
-
-unsigned long lastCatchLineButtonChange = 0;
-
 const unsigned long CATCH_LINE_BUTTON_DEBOUNCE_MS = 30;
-
 const unsigned long CATCH_LINE_INTERVAL_MS = 200;
-
-unsigned long lastCatchLineUpdate = 0;
-
-void loopCatchDropControl() {
-  uint16_t controlKnob = analogRead(GOLDEN_POT);
-  xPos = controlKnob / 147;
-  if (xPos == lastXPos) {
-    return;
-  }
-  // matrix 0,0 (x,y) rechts boven
-  // x = verticaal
-  // y = horizontaal
-  DEBUG_PRINT("CatchDropBar: ");
-  DEBUG_PRINTLN(xPos);
-  drawCatchDrop();
-  lastXPos = xPos;
 }
 
+CatchDropGame catchDropGame;
+CatchLineGame catchLineGame;
 
-void loopCatchDrop() {
+CatchDropGame::CatchDropGame()
+  : points_(0),
+    playerX_(0),
+    lastPlayerX_(0),
+    drops_{8,8,8,8,8,8,8,8},
+    intervalMs_(CATCH_DROP_BASE_INTERVAL_MS),
+    lastUpdate_(0),
+    needsSpawn_(true) {}
+
+void CatchDropGame::update() {
   if (modus != catchDrop) {
     return;
   }
-  loopCatchDropControl();
-  loopCatchDropDrop();
+  updateControl();
+  updateDrops();
 }
 
-
-void loopCatchDropDrop() {
-  unsigned long currentMillis = millis();
-  if (currentMillis - lastCatchDropUpdate < catchDropIntervalMs) {
+void CatchDropGame::updateControl() {
+  uint16_t controlKnob = analogRead(GOLDEN_POT);
+  playerX_ = controlKnob / 147;
+  if (playerX_ == lastPlayerX_) {
     return;
   }
-  lastCatchDropUpdate = currentMillis;
+  DEBUG_PRINT("CatchDropBar: ");
+  DEBUG_PRINTLN(playerX_);
+  draw();
+  lastPlayerX_ = playerX_;
+}
 
-  for (uint8_t i=0;i<8;i++) {
-    if (drops[i] < 8) {
-      drops[i] = drops[i]+1;
-      if (drops[i] == 7) {
-        catchDropNeedSpawn=true;
-        if (i == xPos || i == xPos+1) {
-          catchDropPoints++;
-          if (catchDropIntervalMs > CATCH_DROP_MIN_INTERVAL_MS) {
-            catchDropIntervalMs = catchDropIntervalMs-5;
+void CatchDropGame::updateDrops() {
+  unsigned long currentMillis = millis();
+  if (currentMillis - lastUpdate_ < intervalMs_) {
+    return;
+  }
+  lastUpdate_ = currentMillis;
+
+  for (uint8_t i = 0; i < 8; i++) {
+    if (drops_[i] < 8) {
+      drops_[i]++;
+      if (drops_[i] == 7) {
+        needsSpawn_ = true;
+        if (i == playerX_ || i == playerX_ + 1) {
+          points_++;
+          if (intervalMs_ > CATCH_DROP_MIN_INTERVAL_MS) {
+            intervalMs_ -= 5;
           }
         } else {
-          // lives meganisme
-          if (catchDropPoints > 0) {
-            displayGameOver(catchDropPoints);
+          if (points_ > 0) {
+            displayController.displayGameOver(points_);
           }
-          catchDropIntervalMs = CATCH_DROP_BASE_INTERVAL_MS;
-          catchDropPoints=0;
+          intervalMs_ = CATCH_DROP_BASE_INTERVAL_MS;
+          points_ = 0;
           digitalWrite(5, LOW);
           digitalWrite(6, LOW);
           digitalWrite(7, LOW);
@@ -98,98 +72,104 @@ void loopCatchDropDrop() {
       }
     }
   }
-  if (catchDropNeedSpawn) {
-    catchDropNeedSpawn=false;
-    uint8_t newDropAt = random(0,8);
-    drops[newDropAt]=0;
+
+  if (needsSpawn_) {
+    needsSpawn_ = false;
+    uint8_t newDropAt = random(0, 8);
+    drops_[newDropAt] = 0;
   }
-  drawCatchDrop();
+  draw();
 }
 
-
-void drawCatchDrop() {
-  matrix.clear();
-  matrix.setPoint(7,xPos,true);
-  matrix.setPoint(7,xPos+1,true);
-  for (uint8_t i=0;i<8;i++) {
-    if (drops[i] < 8) {
-      matrix.setPoint(drops[i],i,true);
+void CatchDropGame::draw() {
+  displayController.clear();
+  displayController.setPoint(7, playerX_, true);
+  displayController.setPoint(7, playerX_ + 1, true);
+  for (uint8_t i = 0; i < 8; i++) {
+    if (drops_[i] < 8) {
+      displayController.setPoint(drops_[i], i, true);
     }
   }
 }
 
+CatchLineGame::CatchLineGame()
+  : position_(0),
+    movingRight_(true),
+    points_(0),
+    buttonState_(HIGH),
+    lastButtonReading_(HIGH),
+    lastButtonChange_(0),
+    lastUpdate_(0) {}
 
-void resetCatchLine() {
-  xPosCatchLine = 0;
-  catchLineMovingRight = true;
-  catchLinePoints = 0;
-  catchLineButtonState = HIGH;
-  lastCatchLineButtonReading = HIGH;
-  lastCatchLineButtonChange = 0;
-  lastCatchLineUpdate = 0;
+void CatchLineGame::reset() {
+  position_ = 0;
+  movingRight_ = true;
+  points_ = 0;
+  buttonState_ = HIGH;
+  lastButtonReading_ = HIGH;
+  lastButtonChange_ = 0;
+  lastUpdate_ = 0;
 }
 
-
-void loopCatchLine() {
+void CatchLineGame::update() {
   if (modus != catchLine) {
     return;
   }
 
-  // Debounce the active-low button and count only the stable press edge.
   int buttonReading = digitalRead(buttons[3].input);
-  if (buttonReading != lastCatchLineButtonReading) {
-    lastCatchLineButtonChange = millis();
-    lastCatchLineButtonReading = buttonReading;
+  if (buttonReading != lastButtonReading_) {
+    lastButtonChange_ = millis();
+    lastButtonReading_ = buttonReading;
   }
-  bool catchLineButtonPressed = false;
-  if (millis() - lastCatchLineButtonChange >= CATCH_LINE_BUTTON_DEBOUNCE_MS &&
-      buttonReading != catchLineButtonState) {
-    catchLineButtonState = buttonReading;
-    catchLineButtonPressed = catchLineButtonState == LOW;
+  bool buttonPressed = false;
+  if (millis() - lastButtonChange_ >= CATCH_LINE_BUTTON_DEBOUNCE_MS &&
+      buttonReading != buttonState_) {
+    buttonState_ = buttonReading;
+    buttonPressed = buttonState_ == LOW;
   }
-  if (catchLineButtonPressed) {
-    if (xPosCatchLine == 4) {
+  if (buttonPressed) {
+    if (position_ == 4) {
       DEBUG_PRINTLN("Caught the line!");
-      catchLinePoints++;
+      points_++;
       DEBUG_PRINT("Catch the line points: ");
-      DEBUG_PRINTLN(catchLinePoints);
-      displayScore(catchLinePoints);
+      DEBUG_PRINTLN(points_);
+      displayController.displayScore(points_);
     } else {
       DEBUG_PRINTLN("Missed the line!");
-      displayGameOver(catchLinePoints);
-      resetCatchLine();
+      displayController.displayGameOver(points_);
+      reset();
       return;
     }
   }
 
-  // Update the catch line position
   unsigned long currentMillis = millis();
-  if (currentMillis - lastCatchLineUpdate < CATCH_LINE_INTERVAL_MS) {
+  if (currentMillis - lastUpdate_ < CATCH_LINE_INTERVAL_MS) {
     return;
   }
-  lastCatchLineUpdate = currentMillis;
+  lastUpdate_ = currentMillis;
 
-  matrix.clear();
-  if (xPosCatchLine == 8) {
-    catchLineMovingRight = false;
-  } else if (xPosCatchLine == 0) {
-    catchLineMovingRight = true;
+  draw();
+}
+
+void CatchLineGame::draw() {
+  displayController.clear();
+  if (position_ == 8) {
+    movingRight_ = false;
+  } else if (position_ == 0) {
+    movingRight_ = true;
   }
-  if (catchLineMovingRight) {
-    xPosCatchLine++;
+  if (movingRight_) {
+    position_++;
   } else {
-    xPosCatchLine--;
+    position_--;
   }
 
-  // Draw the new position of the catch line, but also keep the previous position lit for a trailing effect.
-  if (xPosCatchLine < 8) {
-    matrix.setColumn(xPosCatchLine, 0xFF); // Draw the new position
+  if (position_ < 8) {
+    displayController.setColumn(position_, 0xFF);
   }
-  if (xPosCatchLine > 0) {
-    matrix.setColumn(xPosCatchLine - 1, 0xFF);
+  if (position_ > 0) {
+    displayController.setColumn(position_ - 1, 0xFF);
   }
-
-  // Draw the "catch line" at the bottom of the matrix
-  matrix.setPoint(7, 3, true);
-  matrix.setPoint(7, 4, true);
+  displayController.setPoint(7, 3, true);
+  displayController.setPoint(7, 4, true);
 }

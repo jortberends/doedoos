@@ -1,11 +1,10 @@
 #include "Display.h"
-#include "AppState.h"
 #include "Debug.h"
 #include <avr/pgmspace.h>
 #include <stdio.h>
 #include <string.h>
 
-MD_MAX72XX matrix = MD_MAX72XX(MD_MAX72XX::ICSTATION_HW, 36, 1);
+DisplayController displayController;
 
 const uint8_t letters[9][8][8] PROGMEM = {
   { // E lin
@@ -175,97 +174,90 @@ const uint8_t icon[7][8][8] PROGMEM = {
   }
 };
 
-bool displayAnimationRunning = false;
+DisplayController::DisplayController()
+  : matrix_(MD_MAX72XX::ICSTATION_HW, 36, 1),
+    animationRunning_(false),
+    animationText_{},
+    animationTextLength_(0),
+    animationCharacter_(0),
+    animationGlyphColumn_(0),
+    animationTrailingColumns_(0),
+    animationColumns_{},
+    animationIntervalMs_(0),
+    animationLastUpdate_(0),
+    animationFirstFrame_(true),
+    currentIcon_(0),
+    isMirroring_(false),
+    iconSteps_(0) {}
 
-char displayAnimationText[20];
-
-size_t displayAnimationTextLength = 0;
-
-size_t displayAnimationCharacter = 0;
-
-uint8_t displayAnimationGlyphColumn = 0;
-
-uint8_t displayAnimationTrailingColumns = 0;
-
-uint8_t displayAnimationColumns[8] = {};
-
-uint16_t displayAnimationIntervalMs = 0;
-
-unsigned long displayAnimationLastUpdate = 0;
-
-bool displayAnimationFirstFrame = true;
-uint8_t currentIcon = 0;
-bool isMirroring = false;
-uint8_t iconSteps = 0;
-
-void loopIcons() {
-  if (iconSteps == 255) {
+void DisplayController::loopIcons() {
+  if (iconSteps_ == 255) {
     nextIcon();
-    iconSteps = 0;
+    iconSteps_ = 0;
   } else {
-    iconSteps++;
+    iconSteps_++;
   }
 }
 
 
-void printLetter(uint8_t index) {
+void DisplayController::printLetter(uint8_t index) {
   DEBUG_PRINT("PrintLetter:");
   DEBUG_PRINTLN(index);
-  matrix.clear();
+  matrix_.clear();
   for (uint8_t x=0; x < (sizeof(letters[0])/sizeof(letters[0][0])); x++) {
     for (uint8_t y = 0; y < (sizeof(letters[0][0])/sizeof(letters[0][0][0])); y++) {
       if (pgm_read_byte(&letters[index][x][abs(y-7)]) == 1) {
-        matrix.setPoint(x, y, true);
+        matrix_.setPoint(x, y, true);
       }
     }
   }
 }
 
 
-void nextIcon() {
-  currentIcon++;
-  if (currentIcon == (sizeof(icon)/sizeof(icon[0]))) {
-    currentIcon = 0;
+void DisplayController::nextIcon() {
+  currentIcon_++;
+  if (currentIcon_ == (sizeof(icon)/sizeof(icon[0]))) {
+    currentIcon_ = 0;
   }
-  printIcon(currentIcon);
+  printIcon(currentIcon_);
 }
 
 
-void printIcon(uint8_t index) {
+void DisplayController::printIcon(uint8_t index) {
   DEBUG_PRINT("Print smiley: ");
   DEBUG_PRINTLN(index);
-  matrix.clear();
+  matrix_.clear();
   for (uint8_t x=0; x < (sizeof(icon[0])/sizeof(icon[0][0])); x++) {
     for (uint8_t y = 0; y < (sizeof(icon[0][0])/sizeof(icon[0][0][0])); y++) {
       if (pgm_read_byte(&icon[index][x][y]) == 1) {
-        matrix.setPoint(x, y, true);
+        matrix_.setPoint(x, y, true);
       }
     }
   }
-  currentIcon = index;
+  currentIcon_ = index;
 }
 
 
-void mirrorIcon() {
-  isMirroring = !isMirroring;
+void DisplayController::mirrorIcon() {
+  isMirroring_ = !isMirroring_;
   DEBUG_PRINT("Mirror icon: ");
-  DEBUG_PRINTLN(isMirroring);
-  matrix.clear();
+  DEBUG_PRINTLN(isMirroring_);
+  matrix_.clear();
   for (uint8_t x=0; x < (sizeof(icon[0])/sizeof(icon[0][0])); x++) {
     for (uint8_t y = 0; y < (sizeof(icon[0][0])/sizeof(icon[0][0][0])); y++) {
-      if (pgm_read_byte(&icon[currentIcon][x][y]) == 1) {
+      if (pgm_read_byte(&icon[currentIcon_][x][y]) == 1) {
         uint8_t actualY = y;
-        if (isMirroring) {
+        if (isMirroring_) {
           actualY = abs(actualY-7);
         }
-        matrix.setPoint(x, actualY, true);
+        matrix_.setPoint(x, actualY, true);
       }
     }
   }
 }
 
 
-uint8_t gameOverGlyphColumn(char character, uint8_t column) {
+uint8_t DisplayController::gameOverGlyphColumn(char character, uint8_t column) const {
   static const uint8_t glyphG[5] = {0x7E, 0x41, 0x49, 0x49, 0x3A};
   static const uint8_t glyphA[5] = {0x7E, 0x11, 0x11, 0x11, 0x7E};
   static const uint8_t glyphM[5] = {0x7F, 0x06, 0x18, 0x06, 0x7F};
@@ -309,100 +301,114 @@ uint8_t gameOverGlyphColumn(char character, uint8_t column) {
 }
 
 
-void scrollGameOverColumn(uint8_t incomingColumn, uint8_t displayedColumns[8]) {
+void DisplayController::scrollGameOverColumn(uint8_t incomingColumn) {
   for (int8_t column = 7; column > 0; column--) {
-    displayedColumns[column] = displayedColumns[column - 1];
+    animationColumns_[column] = animationColumns_[column - 1];
   }
-  displayedColumns[0] = incomingColumn;
+  animationColumns_[0] = incomingColumn;
 
-  matrix.clear();
+  matrix_.clear();
   for (uint8_t column = 0; column < 8; column++) {
     for (uint8_t row = 0; row < 7; row++) {
-      if (displayedColumns[column] & (1 << row)) {
-        matrix.setPoint(row, column, true);
+      if (animationColumns_[column] & (1 << row)) {
+        matrix_.setPoint(row, column, true);
       }
     }
   }
 }
 
 
-void startDisplayAnimation(const char *text, uint16_t intervalMs) {
-  snprintf(displayAnimationText, sizeof(displayAnimationText), "%s", text);
-  displayAnimationTextLength = strlen(displayAnimationText);
-  displayAnimationCharacter = 0;
-  displayAnimationGlyphColumn = 0;
-  displayAnimationTrailingColumns = 0;
-  memset(displayAnimationColumns, 0, sizeof(displayAnimationColumns));
-  displayAnimationIntervalMs = intervalMs;
-  displayAnimationLastUpdate = millis();
-  displayAnimationFirstFrame = true;
-  displayAnimationRunning = true;
+void DisplayController::startAnimation(const char *text, uint16_t intervalMs) {
+  snprintf(animationText_, sizeof(animationText_), "%s", text);
+  animationTextLength_ = strlen(animationText_);
+  animationCharacter_ = 0;
+  animationGlyphColumn_ = 0;
+  animationTrailingColumns_ = 0;
+  memset(animationColumns_, 0, sizeof(animationColumns_));
+  animationIntervalMs_ = intervalMs;
+  animationLastUpdate_ = millis();
+  animationFirstFrame_ = true;
+  animationRunning_ = true;
 }
 
 
-void updateDisplayAnimation() {
-  if (!displayAnimationRunning) {
+void DisplayController::updateAnimation() {
+  if (!animationRunning_) {
     return;
   }
 
   unsigned long currentMillis = millis();
-  if (!displayAnimationFirstFrame &&
-      currentMillis - displayAnimationLastUpdate < displayAnimationIntervalMs) {
+  if (!animationFirstFrame_ &&
+      currentMillis - animationLastUpdate_ < animationIntervalMs_) {
     return;
   }
-  displayAnimationFirstFrame = false;
-  displayAnimationLastUpdate = currentMillis;
+  animationFirstFrame_ = false;
+  animationLastUpdate_ = currentMillis;
 
   uint8_t incomingColumn = 0;
-  if (displayAnimationCharacter < displayAnimationTextLength) {
-    if (displayAnimationGlyphColumn < 5) {
+  if (animationCharacter_ < animationTextLength_) {
+    if (animationGlyphColumn_ < 5) {
       incomingColumn = gameOverGlyphColumn(
-        displayAnimationText[displayAnimationCharacter],
-        displayAnimationGlyphColumn
+        animationText_[animationCharacter_],
+        animationGlyphColumn_
       );
     }
-    displayAnimationGlyphColumn++;
-    if (displayAnimationGlyphColumn == 6) {
-      displayAnimationGlyphColumn = 0;
-      displayAnimationCharacter++;
+    animationGlyphColumn_++;
+    if (animationGlyphColumn_ == 6) {
+      animationGlyphColumn_ = 0;
+      animationCharacter_++;
     }
   } else {
-    displayAnimationTrailingColumns++;
+    animationTrailingColumns_++;
   }
 
-  scrollGameOverColumn(incomingColumn, displayAnimationColumns);
-  if (displayAnimationTrailingColumns == 8) {
-    displayAnimationRunning = false;
+  scrollGameOverColumn(incomingColumn);
+  if (animationTrailingColumns_ == 8) {
+    animationRunning_ = false;
   }
 }
 
 
-void displayGameOver(uint16_t points) {
+void DisplayController::displayGameOver(uint16_t points) {
   char message[20];
   snprintf(message, sizeof(message), "GAME OVER %u", points);
-  startDisplayAnimation(message, 100);
+  startAnimation(message, 100);
 }
 
 
-void displayScore(uint16_t points) {
+void DisplayController::displayScore(uint16_t points) {
   char score[6];
   snprintf(score, sizeof(score), "%u", points);
 
   size_t scoreLength = strlen(score);
   uint8_t totalColumns = scoreLength * 6 + 8;
   uint16_t scrollDelayMs = 1000 / totalColumns;
-  startDisplayAnimation(score, scrollDelayMs);
+  startAnimation(score, scrollDelayMs);
 }
 
 
-bool displayIsAnimating() {
-  return displayAnimationRunning;
+bool DisplayController::isAnimating() const {
+  return animationRunning_;
 }
 
-void cancelDisplayAnimation() {
-  displayAnimationRunning = false;
+
+void DisplayController::cancelAnimation() {
+  animationRunning_ = false;
 }
 
-void displayInit() {
-  matrix.begin();
+
+void DisplayController::begin() {
+  matrix_.begin();
+}
+
+void DisplayController::clear() {
+  matrix_.clear();
+}
+
+void DisplayController::setPoint(uint8_t row, uint8_t column, bool state) {
+  matrix_.setPoint(row, column, state);
+}
+
+void DisplayController::setColumn(uint8_t column, uint8_t value) {
+  matrix_.setColumn(column, value);
 }

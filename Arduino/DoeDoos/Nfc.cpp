@@ -68,7 +68,7 @@ void loopNFC() {
       uint8_t fileIndex = i; // 0-based
       DEBUG_PRINT("Card: ");
       DEBUG_PRINTLN(fileIndex);
-      printLetter(fileIndex);
+      displayController.printLetter(fileIndex);
       return;
     }
   }

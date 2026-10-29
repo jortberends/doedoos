@@ -44,7 +44,7 @@ void loopFlipButtons() {
   flipRightLastValue = right;
   flipLeftLastValue = left;
 
-  matrix.clear();
+  displayController.clear();
   clearButtons();
   clearLeds();
 
@@ -108,9 +108,9 @@ void testLED() {
   for (uint8_t x = 0; x<8; x++) {
     DEBUG_PRINT_NEWLINE();
     for (uint8_t y = 0; y<8; y++) {
-      matrix.setPoint(x, y, true);
+      displayController.setPoint(x, y, true);
       delay(50);
-      matrix.clear();
+      displayController.clear();
     }
   }
 }
@@ -163,7 +163,7 @@ void readButtons() {
     }
     if (val == LOW && i == buttonToPress) {
       newRandomButtonToPress();
-      nextIcon();
+      displayController.nextIcon();
       buttonsSteps = 0;
       buttonsStepsValue = HIGH;
     } else if (i == buttonToPress && val == HIGH) {
@@ -253,7 +253,7 @@ void loopTorn() {
   if (val == tornLastValue) {
     return;
   }
-  mirrorIcon();
+  displayController.mirrorIcon();
   tornLastValue = val;
 }
 

@@ -21,7 +21,7 @@ void resetTekening() {
       tekening[x][y] = 0;
     }
   }
-  matrix.clear();
+  displayController.clear();
 }
 
 
@@ -42,7 +42,7 @@ void loopOrangeRedPot() {
   for (uint8_t x=0;x<8;x++) {
     for (uint8_t y=0;y<8;y++) {
       if (tekening[x][y] == 1) {
-        matrix.setPoint(x, y, true);
+        displayController.setPoint(x, y, true);
       }
     }
   }

@@ -8,7 +8,7 @@
 
 void setup() {
   Serial.begin(115200);
-  displayInit();
+  displayController.begin();
   setupNfc();
   setupLED();
   setupButtons();
@@ -20,15 +20,15 @@ void setup() {
 }
 
 void loop() {
-  if (displayIsAnimating()) {
+  if (displayController.isAnimating()) {
     Modus previousModus = modus;
     loopFlipButtons();
     loopEmergency();
     if (modus != previousModus) {
-      cancelDisplayAnimation();
-      matrix.clear();
+      displayController.cancelAnimation();
+      displayController.clear();
     } else {
-      updateDisplayAnimation();
+      displayController.updateAnimation();
     }
     return;
   }
@@ -41,7 +41,7 @@ void loop() {
   loopTorn();
   loopFlipButtons();
   loopOrangeRedPot();
-  loopCatchDrop();
-  loopCatchLine();
-  updateDisplayAnimation();
+  catchDropGame.update();
+  catchLineGame.update();
+  displayController.updateAnimation();
 }
