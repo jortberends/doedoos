@@ -2,7 +2,7 @@
 
 #include <Arduino.h>
 
-#define DEBUG_ENABLED 0
+#define DEBUG_ENABLED 1
 #if DEBUG_ENABLED
   #define DEBUG_PRINT(value) Serial.print(value)
   #define DEBUG_PRINTLN(value) Serial.println(value)

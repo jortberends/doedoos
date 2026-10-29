@@ -25,7 +25,7 @@ uint8_t lastCard[10] = {};
 uint8_t loopNFCSteps = 0;
 
 void loopNFC() {
-  if (modus == catchDrop || modus == catchLine) {
+  if (modus == catchDrop || modus == catchLine || modus == spaceInvaders) {
     return;
   }
   loopNFCSteps++;

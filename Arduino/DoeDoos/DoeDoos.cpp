@@ -23,6 +23,7 @@ void loop() {
   if (displayController.isAnimating()) {
     Modus previousModus = modus;
     loopFlipButtons();
+    loopTorn();
     loopEmergency();
     if (modus != previousModus) {
       displayController.cancelAnimation();
@@ -43,5 +44,6 @@ void loop() {
   loopOrangeRedPot();
   catchDropGame.update();
   catchLineGame.update();
+  spaceInvadersGame.update();
   displayController.updateAnimation();
 }

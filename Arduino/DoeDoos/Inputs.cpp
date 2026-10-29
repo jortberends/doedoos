@@ -5,6 +5,7 @@
 
 constexpr uint8_t FLIP_LEFT = 44;
 constexpr uint8_t FLIP_RIGHT = 45;
+constexpr unsigned long TORN_BUTTON_DEBOUNCE_MS = 30;
 
 void clearButtons();
 void clearLeds();
@@ -23,7 +24,9 @@ uint8_t buttonsSteps = 0;
 
 uint8_t buttonsStepsValue = HIGH;
 
-int tornLastValue = HIGH;
+int tornLastReading = HIGH;
+int tornStableState = HIGH;
+unsigned long tornLastChange = 0;
 
 uint16_t blauwePotSteps = 0;
 
@@ -80,7 +83,7 @@ void setupVibrator() {
 
 
 void loopEmergency() {
-  if (modus == catchDrop || modus == catchLine) {
+  if (modus == catchDrop || modus == catchLine || modus == spaceInvaders) {
     if (vibratorWorking) {
       vibratorWorking=false;
       analogWrite(VIBRATOR, 0);
@@ -148,7 +151,7 @@ void clearLeds() {
 
 
 void readButtons() {
-  if (modus == catchDrop || modus == catchLine) {
+  if (modus == catchDrop || modus == catchLine || modus == spaceInvaders) {
     return;
   }
   if (modus != standaard) {
@@ -192,7 +195,7 @@ void readButtons() {
 
 
 void readGoudenPot() {
-  if (modus == catchDrop || modus == catchLine) {
+  if (modus == catchDrop || modus == catchLine || modus == spaceInvaders) {
     return;
   }
   int val = analogRead(GOLDEN_POT);
@@ -240,26 +243,58 @@ void newRandomButtonToPress() {
 
 void setupTorn() {
   pinMode(46, INPUT_PULLUP);
+  tornLastReading = digitalRead(46);
+  tornStableState = tornLastReading;
+  tornLastChange = millis();
 }
 
 
 void loopTorn() {
-  if (modus != standaard) {
+  int reading = digitalRead(46);
+  if (reading != tornLastReading) {
+    tornLastReading = reading;
+    tornLastChange = millis();
+  }
+
+  if (millis() - tornLastChange < TORN_BUTTON_DEBOUNCE_MS ||
+      tornLastReading == tornStableState) {
     return;
   }
-  int val = digitalRead(46);
+
+  tornStableState = tornLastReading;
   DEBUG_PRINT("Torn val:");
-  DEBUG_PRINTLN(val);
-  if (val == tornLastValue) {
+  DEBUG_PRINTLN(tornStableState);
+  if (modus == standaard) {
+    displayController.mirrorIcon();
     return;
   }
-  displayController.mirrorIcon();
-  tornLastValue = val;
+  if (tornStableState != LOW ||
+      (modus != catchDrop && modus != catchLine && modus != spaceInvaders)) {
+    return;
+  }
+
+  if (modus == catchDrop) {
+    modus = catchLine;
+    DEBUG_PRINTLN("Modus to catch the line");
+  } else if (modus == catchLine) {
+    modus = spaceInvaders;
+    DEBUG_PRINTLN("Modus to Space Invaders");
+  } else {
+    modus = catchDrop;
+    DEBUG_PRINTLN("Modus to catch the drop");
+  }
+
+  displayController.clear();
+  clearButtons();
+  clearLeds();
+  if (modus == catchLine) {
+    digitalWrite(buttons[3].led, HIGH);
+  }
 }
 
 
 void loopBlauwePot() {
-  if (modus == catchDrop || modus == catchLine) {
+  if (modus == catchDrop || modus == catchLine || modus == spaceInvaders) {
     return;
   }
   uint16_t val = analogRead(0);

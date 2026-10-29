@@ -11,7 +11,8 @@ enum Modus {
   standaard,
   sketch,
   catchDrop,
-  catchLine
+  catchLine,
+  spaceInvaders
 };
 
 constexpr uint8_t VIBRATOR = 11;

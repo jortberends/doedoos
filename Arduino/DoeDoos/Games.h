@@ -39,5 +39,40 @@ private:
   unsigned long lastUpdate_;
 };
 
+class SpaceInvadersGame {
+public:
+  SpaceInvadersGame();
+  void update();
+
+private:
+  void reset();
+  void updateRocket();
+  void updateShooting(unsigned long currentMillis);
+  void updateInvader(unsigned long currentMillis);
+  void checkCollision();
+  void draw();
+  void finishGame();
+
+  bool wasActive_;
+  bool gameOver_;
+  uint16_t points_;
+  uint8_t rocketX_;
+  uint8_t invaderLeftX_;
+  uint8_t invaderY_[3];
+  bool invaderAlive_[3];
+  int8_t invaderDirection_;
+  bool bulletActive_;
+  uint8_t bulletX_;
+  uint8_t bulletY_;
+  int fireButtonState_;
+  int lastFireButtonReading_;
+  unsigned long lastFireButtonChange_;
+  unsigned long lastBulletUpdate_;
+  unsigned long lastInvaderUpdate_;
+  unsigned long lastDrawUpdate_;
+  bool hasDrawn_;
+};
+
 extern CatchDropGame catchDropGame;
 extern CatchLineGame catchLineGame;
+extern SpaceInvadersGame spaceInvadersGame;
