@@ -2,6 +2,7 @@
 #include "AppState.h"
 #include "Display.h"
 #include "Debug.h"
+#include "Haptics.h"
 
 constexpr uint8_t FLIP_LEFT = 44;
 constexpr uint8_t FLIP_RIGHT = 45;
@@ -77,6 +78,7 @@ void setupEmergency() {
 
 void setupVibrator() {
   pinMode(VIBRATOR, OUTPUT);
+  analogWrite(VIBRATOR, 0);
 }
 
 
@@ -88,7 +90,6 @@ void loopEmergency() {
   } else if (val == LOW && hapticEnabled) {
     DEBUG_PRINTLN("Emergency LOW");
     hapticEnabled = false;
-    analogWrite(VIBRATOR, 0);
   }
 }
 
@@ -143,9 +144,11 @@ void clearLeds() {
 
 void readButtons() {
   if (modus == catchDrop || modus == catchLine || modus == spaceInvaders) {
+    setButtonFeedbackVibration(false);
     return;
   }
   if (modus != standaard) {
+    setButtonFeedbackVibration(false);
     clearButtons();
     return;
   }
@@ -176,11 +179,10 @@ void readButtons() {
   DEBUG_PRINT("Vibrator ON - a button is ");
   if (aButtonIsBeingPressed) {
     DEBUG_PRINTLN("pressed");
-    analogWrite(VIBRATOR, 255);
   } else {
     DEBUG_PRINTLN("NOT pressed");
-    analogWrite(VIBRATOR, 0);
   }
+  setButtonFeedbackVibration(aButtonIsBeingPressed);
   DEBUG_PRINTLN("=====================");
 }
 
@@ -221,14 +223,18 @@ void readGoudenPot() {
 
 
 void newRandomButtonToPress() {
-  uint8_t newRandomButton = random(0, sizeof(buttons)/sizeof(buttons[0]));
-  if (newRandomButton == buttonToPress) {
-    newRandomButtonToPress();
+  const uint8_t buttonCount = sizeof(buttons) / sizeof(buttons[0]);
+  if (buttonCount <= 1) {
+    buttonToPress = 0;
   } else {
-    buttonToPress = newRandomButton;
-    DEBUG_PRINT("New button to press: ");
-    DEBUG_PRINTLN(buttons[buttonToPress].input);
+    uint8_t nextButton = random(0, buttonCount - 1);
+    if (nextButton >= buttonToPress) {
+      nextButton++;
+    }
+    buttonToPress = nextButton;
   }
+  DEBUG_PRINT("New button to press: ");
+  DEBUG_PRINTLN(buttons[buttonToPress].input);
 }
 
 

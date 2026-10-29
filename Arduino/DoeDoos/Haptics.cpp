@@ -3,12 +3,13 @@
 
 namespace {
 const unsigned long HIT_VIBRATION_DURATION_MS = 240;
-const unsigned long GAME_OVER_VIBRATION_PHASES[] = {300, 300, 300, 300, 300};
+const unsigned long GAME_OVER_VIBRATION_PHASES[] = {100, 100, 100, 100, 300};
 const uint8_t GAME_OVER_VIBRATION_PHASE_COUNT =
   sizeof(GAME_OVER_VIBRATION_PHASES) / sizeof(GAME_OVER_VIBRATION_PHASES[0]);
 
 enum class VibrationPattern : uint8_t {
   None,
+  ButtonFeedback,
   Hit,
   GameOver
 };
@@ -16,6 +17,27 @@ enum class VibrationPattern : uint8_t {
 VibrationPattern vibrationPattern = VibrationPattern::None;
 uint8_t vibrationPhase = 0;
 unsigned long vibrationPhaseStarted = 0;
+}
+
+void setButtonFeedbackVibration(bool active) {
+  if (!hapticEnabled) {
+    if (vibrationPattern == VibrationPattern::ButtonFeedback) {
+      vibrationPattern = VibrationPattern::None;
+      analogWrite(VIBRATOR, 0);
+    }
+    return;
+  }
+
+  if (active) {
+    if (vibrationPattern == VibrationPattern::None ||
+        vibrationPattern == VibrationPattern::ButtonFeedback) {
+      vibrationPattern = VibrationPattern::ButtonFeedback;
+      analogWrite(VIBRATOR, 255);
+    }
+  } else if (vibrationPattern == VibrationPattern::ButtonFeedback) {
+    vibrationPattern = VibrationPattern::None;
+    analogWrite(VIBRATOR, 0);
+  }
 }
 
 void startHitVibration() {
@@ -58,6 +80,10 @@ void updateVibration() {
       vibrationPattern = VibrationPattern::None;
       analogWrite(VIBRATOR, 0);
     }
+    return;
+  }
+
+  if (vibrationPattern == VibrationPattern::ButtonFeedback) {
     return;
   }
 
