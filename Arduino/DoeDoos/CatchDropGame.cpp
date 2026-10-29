@@ -2,6 +2,7 @@
 #include "AppState.h"
 #include "Display.h"
 #include "Debug.h"
+#include "Haptics.h"
 
 namespace {
 const unsigned long CATCH_DROP_BASE_INTERVAL_MS = 200;
@@ -53,11 +54,13 @@ void CatchDropGame::updateDrops() {
         needsSpawn_ = true;
         if (i == playerX_ || i == playerX_ + 1) {
           points_++;
+          startHitVibration();
           if (intervalMs_ > CATCH_DROP_MIN_INTERVAL_MS) {
             intervalMs_ -= 5;
           }
         } else {
           if (points_ > 0) {
+            startGameOverVibration();
             displayController.displayGameOver(points_);
           }
           intervalMs_ = CATCH_DROP_BASE_INTERVAL_MS;

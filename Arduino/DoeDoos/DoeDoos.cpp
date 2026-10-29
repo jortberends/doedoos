@@ -2,6 +2,7 @@
 #include "AppState.h"
 #include "Display.h"
 #include "Games.h"
+#include "Haptics.h"
 #include "Inputs.h"
 #include "Nfc.h"
 #include "Sketch.h"
@@ -25,6 +26,7 @@ void loop() {
     loopFlipButtons();
     loopTorn();
     loopEmergency();
+    updateVibration();
     if (modus != previousModus) {
       displayController.cancelAnimation();
       displayController.clear();
@@ -46,4 +48,5 @@ void loop() {
   catchLineGame.update();
   spaceInvadersGame.update();
   displayController.updateAnimation();
+  updateVibration();
 }

@@ -13,3 +13,4 @@ Button buttons[] = {
 };
 
 Modus modus = standaard;
+bool hapticEnabled = false;

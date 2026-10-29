@@ -21,3 +21,4 @@ constexpr uint8_t GOLDEN_POT = 58;
 
 extern Button buttons[9];
 extern Modus modus;
+extern bool hapticEnabled;

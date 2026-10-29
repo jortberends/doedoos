@@ -18,8 +18,6 @@ int flipLeftLastValue = LOW;
 
 int flipRightLastValue = LOW;
 
-bool vibratorWorking=false;
-
 uint8_t buttonsSteps = 0;
 
 uint8_t buttonsStepsValue = HIGH;
@@ -83,20 +81,13 @@ void setupVibrator() {
 
 
 void loopEmergency() {
-  if (modus == catchDrop || modus == catchLine || modus == spaceInvaders) {
-    if (vibratorWorking) {
-      vibratorWorking=false;
-      analogWrite(VIBRATOR, 0);
-    }
-    return;
-  }
   uint8_t val = digitalRead(EMERGENCY);
-  if (val == HIGH) {
+  if (val == HIGH && !hapticEnabled) {
     DEBUG_PRINTLN("Emergency HIGH");
-    vibratorWorking=true;
-  } else {
+    hapticEnabled = true;
+  } else if (val == LOW && hapticEnabled) {
     DEBUG_PRINTLN("Emergency LOW");
-    vibratorWorking=false;
+    hapticEnabled = false;
     analogWrite(VIBRATOR, 0);
   }
 }

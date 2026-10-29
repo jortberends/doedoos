@@ -2,6 +2,7 @@
 #include "AppState.h"
 #include "Display.h"
 #include "Debug.h"
+#include "Haptics.h"
 
 namespace {
 const unsigned long CATCH_LINE_BUTTON_DEBOUNCE_MS = 30;
@@ -51,9 +52,11 @@ void CatchLineGame::update() {
       points_++;
       DEBUG_PRINT("Catch the line points: ");
       DEBUG_PRINTLN(points_);
+      startHitVibration();
       displayController.displayScore(points_);
     } else {
       DEBUG_PRINTLN("Missed the line!");
+      startGameOverVibration();
       displayController.displayGameOver(points_);
       reset();
       return;

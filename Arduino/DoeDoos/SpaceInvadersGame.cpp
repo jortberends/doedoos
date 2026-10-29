@@ -2,6 +2,7 @@
 #include "AppState.h"
 #include "Display.h"
 #include "Debug.h"
+#include "Haptics.h"
 
 namespace {
 const unsigned long SPACE_INVADERS_BUTTON_DEBOUNCE_MS = 30;
@@ -57,6 +58,7 @@ void SpaceInvadersGame::reset() {
 }
 
 void SpaceInvadersGame::update() {
+  unsigned long currentMillis = millis();
   if (modus != spaceInvaders) {
     wasActive_ = false;
     return;
@@ -69,7 +71,6 @@ void SpaceInvadersGame::update() {
     return;
   }
 
-  unsigned long currentMillis = millis();
   updateRocket();
   updateShooting(currentMillis);
   updateInvader(currentMillis);
@@ -149,6 +150,7 @@ void SpaceInvadersGame::checkCollision() {
       bulletActive_ = false;
       points_++;
       invaderY_[i] = 0;
+      startHitVibration();
       return;
     }
   }
@@ -177,6 +179,7 @@ void SpaceInvadersGame::draw() {
 void SpaceInvadersGame::finishGame() {
   gameOver_ = true;
   bulletActive_ = false;
+  startGameOverVibration();
   displayController.displayGameOver(points_);
   reset();
 }
