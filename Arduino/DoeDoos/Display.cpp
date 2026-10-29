@@ -1,12 +1,13 @@
 #include "Display.h"
 #include "AppState.h"
 #include "Debug.h"
+#include <avr/pgmspace.h>
 #include <stdio.h>
 #include <string.h>
 
 MD_MAX72XX matrix = MD_MAX72XX(MD_MAX72XX::ICSTATION_HW, 36, 1);
 
-uint8_t letters[9][8][8] = {
+const uint8_t letters[9][8][8] PROGMEM = {
   { // E lin
     {0,1,1,1,1,1,1,0},
     {0,1,0,0,0,0,0,0},
@@ -91,7 +92,7 @@ uint8_t letters[9][8][8] = {
   }
 };
 
-uint8_t icon[7][8][8] = {
+const uint8_t icon[7][8][8] PROGMEM = {
   { // Happy
     {0,0,1,1,1,1,0,0},
     {0,1,0,0,0,0,1,0},
@@ -213,7 +214,7 @@ void printLetter(uint8_t index) {
   matrix.clear();
   for (uint8_t x=0; x < (sizeof(letters[0])/sizeof(letters[0][0])); x++) {
     for (uint8_t y = 0; y < (sizeof(letters[0][0])/sizeof(letters[0][0][0])); y++) {
-      if (letters[index][x][abs(y-7)] == 1) {
+      if (pgm_read_byte(&letters[index][x][abs(y-7)]) == 1) {
         matrix.setPoint(x, y, true);
       }
     }
@@ -236,7 +237,7 @@ void printIcon(uint8_t index) {
   matrix.clear();
   for (uint8_t x=0; x < (sizeof(icon[0])/sizeof(icon[0][0])); x++) {
     for (uint8_t y = 0; y < (sizeof(icon[0][0])/sizeof(icon[0][0][0])); y++) {
-      if (icon[index][x][y] == 1) {
+      if (pgm_read_byte(&icon[index][x][y]) == 1) {
         matrix.setPoint(x, y, true);
       }
     }
@@ -252,7 +253,7 @@ void mirrorIcon() {
   matrix.clear();
   for (uint8_t x=0; x < (sizeof(icon[0])/sizeof(icon[0][0])); x++) {
     for (uint8_t y = 0; y < (sizeof(icon[0][0])/sizeof(icon[0][0][0])); y++) {
-      if (icon[currentIcon][x][y] == 1) {
+      if (pgm_read_byte(&icon[currentIcon][x][y]) == 1) {
         uint8_t actualY = y;
         if (isMirroring) {
           actualY = abs(actualY-7);
