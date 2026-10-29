@@ -3,11 +3,12 @@
 #include "Display.h"
 #include "Debug.h"
 #include <MFRC522.h>
+#include <avr/pgmspace.h>
 #include <string.h>
 
 MFRC522 mfrc522(53, -1);
 
-uint8_t nfc[9][7] = {
+const uint8_t nfc[9][7] PROGMEM = {
   {0x04,0x1D,0x35,0xC2,0x83,0x64,0x81},
   {0x04,0x25,0x35,0xC2,0x83,0x64,0x81},
   {0x04,0x29,0x34,0xC2,0x83,0x64,0x81},
@@ -42,6 +43,13 @@ void loopNFC() {
     return;
   }
   DEBUG_PRINTLN("Card read.");
+
+  if (mfrc522.uid.size != sizeof(nfc[0])) {
+    DEBUG_PRINT("Unsupported NFC UID length: ");
+    DEBUG_PRINTLN(mfrc522.uid.size);
+    return;
+  }
+
   if (memcmp(mfrc522.uid.uidByte, lastCard, mfrc522.uid.size) == 0) {
     // Same NFC as previous
     DEBUG_PRINTLN("Same as previous");
@@ -49,7 +57,14 @@ void loopNFC() {
   }
   memcpy(lastCard, mfrc522.uid.uidByte, mfrc522.uid.size);
   for (uint8_t i=0; i < (sizeof(nfc)/sizeof(nfc[0])); i++) {
-    if (memcmp(lastCard, nfc[i], mfrc522.uid.size) == 0) {
+    bool matches = true;
+    for (uint8_t j = 0; j < mfrc522.uid.size; j++) {
+      if (lastCard[j] != pgm_read_byte(&nfc[i][j])) {
+        matches = false;
+        break;
+      }
+    }
+    if (matches) {
       uint8_t fileIndex = i; // 0-based
       DEBUG_PRINT("Card: ");
       DEBUG_PRINTLN(fileIndex);
