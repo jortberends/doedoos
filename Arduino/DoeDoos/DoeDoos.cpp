@@ -1,21 +1,61 @@
+#include <Arduino.h>
 #include <MD_MAX72xx.h>
 #include <SPI.h>
 #include <MFRC522.h>
 #include <stdio.h>
 #include <string.h>
+#include "Debug.h"
 
-#define DEBUG_ENABLED 0
-#if DEBUG_ENABLED
-  #define DEBUG_PRINT(value) Serial.print(value)
-  #define DEBUG_PRINTLN(value) Serial.println(value)
-  #define DEBUG_PRINT_NEWLINE() Serial.println()
-  #define DEBUG_PRINT_FORMAT(value, format) Serial.print(value, format)
-#else
-  #define DEBUG_PRINT(value)
-  #define DEBUG_PRINTLN(value)
-  #define DEBUG_PRINT_NEWLINE()
-  #define DEBUG_PRINT_FORMAT(value, format)
-#endif
+void setup();
+void loop();
+void setupFlipButtons();
+void loopFlipButtons();
+void setupEmergency();
+void setupVibrator();
+void loopEmergency();
+void testLED();
+void setupLED();
+void setupButtons();
+void clearButtons();
+void clearLeds();
+void readButtons();
+void readGoudenPot();
+void loopIcons();
+void printLetter(uint8_t index);
+void nextIcon();
+void printIcon(uint8_t index);
+void mirrorIcon();
+void newRandomButtonToPress();
+void setupTorn();
+void loopTorn();
+void loopBlauwePot();
+void resetTekening();
+void loopCatchDropControl();
+void loopCatchDrop();
+void loopCatchDropDrop();
+void drawCatchDrop();
+void resetCatchLine();
+void loopCatchLine();
+uint8_t gameOverGlyphColumn(char character, uint8_t column);
+void scrollGameOverColumn(uint8_t incomingColumn, uint8_t displayedColumns[8]);
+void startDisplayAnimation(const char *text, uint16_t intervalMs);
+void updateDisplayAnimation();
+void displayGameOver(uint16_t points);
+void displayScore(uint16_t points);
+void loopOrangeRedPot();
+void loopNFC();
+void printHex(byte *buffer, byte bufferSize);
+
+bool displayAnimationRunning = false;
+char displayAnimationText[20];
+size_t displayAnimationTextLength = 0;
+size_t displayAnimationCharacter = 0;
+uint8_t displayAnimationGlyphColumn = 0;
+uint8_t displayAnimationTrailingColumns = 0;
+uint8_t displayAnimationColumns[8] = {};
+uint16_t displayAnimationIntervalMs = 0;
+unsigned long displayAnimationLastUpdate = 0;
+bool displayAnimationFirstFrame = true;
 
 //  Matrix
 #define MATRIX_HARDWARE_TYPE MD_MAX72XX::ICSTATION_HW
@@ -242,6 +282,19 @@ void setup() {
 }
 
 void loop() {
+  if (displayAnimationRunning) {
+    Modus previousModus = modus;
+    loopFlipButtons();
+    loopEmergency();
+    if (modus != previousModus) {
+      displayAnimationRunning = false;
+      matrix.clear();
+    } else {
+      updateDisplayAnimation();
+    }
+    return;
+  }
+
   readButtons();
   readGoudenPot();
   loopBlauwePot();
@@ -253,6 +306,7 @@ void loop() {
   loopOrangeRedPot();
   loopCatchDrop();
   loopCatchLine();
+  updateDisplayAnimation();
 }
 
 #define FLIP_LEFT 44
@@ -306,29 +360,13 @@ void setupVibrator() {
   pinMode(VIBRATOR, OUTPUT);
 }
 
-//uint8_t vibratorSteps = 0;
-//bool vibratorOn = false;
-//bool vibratorWorking = false;
-//void loopVibrator() {
-//  vibratorSteps++;
-//  if (vibratorSteps == 255) {
-//    vibratorSteps = 0;
-//    vibratorOn = !vibratorOn;
-//  } else {
-//    return;
-//  }
-//  if (!vibratorWorking) {
-//    return;
-//  }
-//  if (vibratorOn) {
-//    analogWrite(VIBRATOR, 255);
-//  } else {
-//    analogWrite(VIBRATOR, 0);
-//  }
-//}
 bool vibratorWorking=false;
 void loopEmergency() {
   if (modus == catchDrop || modus == catchLine) {
+    if (vibratorWorking) {
+      vibratorWorking=false;
+      analogWrite(VIBRATOR, 0);
+    }
     return;
   }
   uint8_t val = digitalRead(EMERGENCY);
@@ -664,7 +702,7 @@ void loopCatchDropDrop() {
   }
   if (catchDropNeedSpawn) {
     catchDropNeedSpawn=false;
-    uint8_t newDropAt = random(0,7);
+    uint8_t newDropAt = random(0,8);
     drops[newDropAt]=0;
   }
   drawCatchDrop();
@@ -811,7 +849,7 @@ uint8_t gameOverGlyphColumn(char character, uint8_t column) {
   return glyph[column];
 }
 
-void scrollGameOverColumn(uint8_t incomingColumn, uint8_t displayedColumns[8], uint16_t delayMs) {
+void scrollGameOverColumn(uint8_t incomingColumn, uint8_t displayedColumns[8]) {
   for (int8_t column = 7; column > 0; column--) {
     displayedColumns[column] = displayedColumns[column - 1];
   }
@@ -825,51 +863,71 @@ void scrollGameOverColumn(uint8_t incomingColumn, uint8_t displayedColumns[8], u
       }
     }
   }
-  delay(delayMs);
+}
+
+void startDisplayAnimation(const char *text, uint16_t intervalMs) {
+  snprintf(displayAnimationText, sizeof(displayAnimationText), "%s", text);
+  displayAnimationTextLength = strlen(displayAnimationText);
+  displayAnimationCharacter = 0;
+  displayAnimationGlyphColumn = 0;
+  displayAnimationTrailingColumns = 0;
+  memset(displayAnimationColumns, 0, sizeof(displayAnimationColumns));
+  displayAnimationIntervalMs = intervalMs;
+  displayAnimationLastUpdate = millis();
+  displayAnimationFirstFrame = true;
+  displayAnimationRunning = true;
+}
+
+void updateDisplayAnimation() {
+  if (!displayAnimationRunning) {
+    return;
+  }
+
+  unsigned long currentMillis = millis();
+  if (!displayAnimationFirstFrame &&
+      currentMillis - displayAnimationLastUpdate < displayAnimationIntervalMs) {
+    return;
+  }
+  displayAnimationFirstFrame = false;
+  displayAnimationLastUpdate = currentMillis;
+
+  uint8_t incomingColumn = 0;
+  if (displayAnimationCharacter < displayAnimationTextLength) {
+    if (displayAnimationGlyphColumn < 5) {
+      incomingColumn = gameOverGlyphColumn(
+        displayAnimationText[displayAnimationCharacter],
+        displayAnimationGlyphColumn
+      );
+    }
+    displayAnimationGlyphColumn++;
+    if (displayAnimationGlyphColumn == 6) {
+      displayAnimationGlyphColumn = 0;
+      displayAnimationCharacter++;
+    }
+  } else {
+    displayAnimationTrailingColumns++;
+  }
+
+  scrollGameOverColumn(incomingColumn, displayAnimationColumns);
+  if (displayAnimationTrailingColumns == 8) {
+    displayAnimationRunning = false;
+  }
 }
 
 void displayGameOver(uint16_t points) {
   char message[20];
   snprintf(message, sizeof(message), "GAME OVER %u", points);
-
-  uint8_t displayedColumns[8] = {};
-  size_t messageLength = strlen(message);
-
-  for (size_t characterIndex = 0; characterIndex < messageLength; characterIndex++) {
-    for (uint8_t glyphColumn = 0; glyphColumn < 6; glyphColumn++) {
-      uint8_t incomingColumn = glyphColumn < 5
-        ? gameOverGlyphColumn(message[characterIndex], glyphColumn)
-        : 0;
-      scrollGameOverColumn(incomingColumn, displayedColumns, 100);
-    }
-  }
-
-  for (uint8_t column = 0; column < 8; column++) {
-    scrollGameOverColumn(0, displayedColumns, 100);
-  }
+  startDisplayAnimation(message, 100);
 }
 
 void displayScore(uint16_t points) {
   char score[6];
   snprintf(score, sizeof(score), "%u", points);
 
-  uint8_t displayedColumns[8] = {};
   size_t scoreLength = strlen(score);
   uint8_t totalColumns = scoreLength * 6 + 8;
   uint16_t scrollDelayMs = 1000 / totalColumns;
-
-  for (size_t characterIndex = 0; characterIndex < scoreLength; characterIndex++) {
-    for (uint8_t glyphColumn = 0; glyphColumn < 6; glyphColumn++) {
-      uint8_t incomingColumn = glyphColumn < 5
-        ? gameOverGlyphColumn(score[characterIndex], glyphColumn)
-        : 0;
-      scrollGameOverColumn(incomingColumn, displayedColumns, scrollDelayMs);
-    }
-  }
-
-  for (uint8_t column = 0; column < 8; column++) {
-    scrollGameOverColumn(0, displayedColumns, scrollDelayMs);
-  }
+  startDisplayAnimation(score, scrollDelayMs);
 }
 
 void loopOrangeRedPot() {
